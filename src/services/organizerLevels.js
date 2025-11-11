@@ -1,0 +1,30 @@
+import { apiFetch } from './api';
+
+export async function fetchOrganizerLevels() {
+  try {
+    const res = await apiFetch('/api/organizer-levels');
+    return res;
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function createOrganizerLevel(data) {
+  return apiFetch('/api/organizer-levels', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function updateOrganizerLevel(id, data) {
+  return apiFetch(`/api/organizer-levels/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function deleteOrganizerLevel(id) {
+  return apiFetch(`/api/organizer-levels/${id}`, {
+    method: 'DELETE'
+  });
+}

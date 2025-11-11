@@ -1,0 +1,172 @@
+﻿/**
+ * App.jsx - Component chính của ứng dụng
+ * 
+ * Chức năng:
+ * - Quản lý trạng thái đăng nhập và điều hướng
+ * - Khởi tạo SDK và cấu hình hệ thống
+ * - Hiển thị giao diện chính với menu và nội dung
+ */
+
+import { useState, useEffect } from 'react';
+import { AppProvider } from './providers/AppProvider';
+import { useApp } from './hooks/useApp';
+import { defaultConfig } from './utils/config';
+import LoginForm from './components/LoginForm';
+import Navigation from './components/Navigation';
+import ChangePasswordModal from './components/ChangePasswordModal';
+import Dashboard from './components/Dashboard';
+import EventManagement from './components/EventManagement';
+import CompetitionManagement from './components/CompetitionManagement';
+import RegistrationManagement from './components/RegistrationManagement';
+import AttendanceManagement from './components/AttendanceManagement';
+import CertificateManagement from './components/CertificateManagement';
+import Reports from './components/Reports';
+import UserManagement from './components/UserManagement';
+
+function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const { state, updateConfig, updateData } = useApp();
+
+  // Try to restore session from stored token/user
+  useEffect(() => {
+    let mounted = true;
+    const tryRestore = async () => {
+      try {
+        const stored = localStorage.getItem('nvsp_user');
+        const token = localStorage.getItem('nvsp_token');
+        if (token) {
+          // attempt to fetch fresh user info
+          const { fetchMe } = await import('./services/auth');
+          const me = await fetchMe();
+          if (me && mounted) {
+            setCurrentUser(me);
+          } else if (stored && mounted) {
+            setCurrentUser(JSON.parse(stored));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    tryRestore();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    // Initialize Data SDK
+    const initializeDataSdk = async () => {
+      if (window.dataSdk) {
+        const result = await window.dataSdk.init({
+          onDataChanged: (data) => {
+            updateData(data);
+          }
+        });
+        if (!result.isOk) {
+          console.error('Failed to initialize Data SDK');
+        }
+      }
+    };
+
+    // Initialize Element SDK
+    const initializeElementSdk = async () => {
+      if (window.elementSdk) {
+        await window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: (config) => {
+            updateConfig(config);
+            updateCssVariables(config);
+          }
+        });
+        if (window.elementSdk.config) {
+          updateConfig(window.elementSdk.config);
+        }
+      }
+    };
+
+    initializeDataSdk();
+    initializeElementSdk();
+  }, [updateConfig, updateData]);
+
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    setActiveTab('dashboard');
+    // Show change-password modal for non-admin users (UI only)
+    if (user && user.role && user.role !== 'admin') {
+      setShowChangePassword(true);
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    import('./services/auth').then(mod => mod.logout()).catch(() => {});
+    setActiveTab('dashboard');
+  };
+
+  const updateCssVariables = (config) => {
+    document.documentElement.style.setProperty('--primary-color', config.primary_color || defaultConfig.primary_color);
+    document.documentElement.style.setProperty('--secondary-color', config.secondary_color || defaultConfig.secondary_color);
+    document.documentElement.style.setProperty('--background-color', config.background_color || defaultConfig.background_color);
+    document.documentElement.style.setProperty('--text-color', config.text_color || defaultConfig.text_color);
+    document.documentElement.style.setProperty('--accent-color', config.accent_color || defaultConfig.accent_color);
+  };
+
+  const renderContent = () => {
+    if (!currentUser) return null;
+
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard user={currentUser} />;
+      case 'events':
+        return <EventManagement user={currentUser} />;
+      case 'competitions':
+        return <CompetitionManagement user={currentUser} />;
+      case 'registrations':
+        return <RegistrationManagement user={currentUser} />;
+      case 'attendance':
+        return <AttendanceManagement user={currentUser} />;
+      case 'certificates':
+        return <CertificateManagement user={currentUser} />;
+      case 'reports':
+        return <Reports user={currentUser} />;
+      case 'users':
+        return <UserManagement user={currentUser} />;
+      default:
+        return (
+          <div className="text-center py-12 text-gray-500">
+      <div className="text-6xl mb-4"></div>
+            <p className="text-lg">Chức năng đang phát triển</p>
+            <p className="text-sm">Vui lòng quay lại sau!</p>
+          </div>
+        );
+    }
+  };
+
+  if (!currentUser) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
+
+  return (
+    <div className="flex h-full" style={{ backgroundColor: state.config.background_color }}>
+      <Navigation
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={currentUser}
+        onLogout={handleLogout}
+      />
+      <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
+      <main className="flex-1 p-6 overflow-y-auto">
+        {renderContent()}
+      </main>
+    </div>
+  );
+}
+
+export default function AppWithProvider() {
+  return (
+    <AppProvider>
+      <App />
+    </AppProvider>
+  );
+}

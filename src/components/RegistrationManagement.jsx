@@ -1,0 +1,239 @@
+import { useState, useEffect } from 'react';
+import { useApp } from '../hooks/useApp';
+import { formatDateTime } from '../utils/config';
+import toast from 'react-hot-toast';
+import InputDialog from './InputDialog';
+import { fetchRegistrations } from '../services/registrations';
+
+export default function RegistrationManagement({ user }) {
+  const [registrations, setRegistrations] = useState([]);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('all');
+  const [inputDialog, setInputDialog] = useState({ isOpen: false, title: '', label: '', defaultValue: '', onConfirm: null });
+
+  const { state } = useApp();
+  const { config } = state;
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await fetchRegistrations();
+        if (!mounted) return;
+        if (!rows || !Array.isArray(rows) || rows.length === 0) {
+          setRegistrations([]);
+          return;
+        }
+
+        const mapped = rows.map(r => ({
+          id: r.id,
+          type: 'registration',
+          title: r.fullName || r.studentName || 'Đăng ký',
+          studentId: r.studentCode || r.studentId,
+          fullName: r.fullName || r.studentName,
+          className: '',
+          faculty: '',
+          email: '',
+          phone: '',
+          category: r.category || '',
+          registrationDate: r.registrationDate,
+          status: r.status || 'pending',
+          createdBy: null,
+          createdAt: r.registrationDate || new Date().toISOString(),
+          updatedAt: r.registrationDate || new Date().toISOString(),
+          data: JSON.stringify({})
+        }));
+
+        setRegistrations(mapped);
+      } catch (err) {
+        console.warn('Failed to load registrations', err);
+        toast('Không thể tải danh sách đăng ký từ server', { icon: '⚠️' });
+        setRegistrations([]);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  const handleApprove = async (registration) => {
+    setLoading(true);
+    const updatedRegistration = {
+      ...registration,
+      status: 'approved',
+      updatedAt: new Date().toISOString(),
+      data: JSON.stringify({ ...JSON.parse(registration.data || '{}'), approvedBy: user.id, approvedAt: new Date().toISOString() })
+    };
+    
+    const result = await window.dataSdk.update(updatedRegistration);
+    if (!result.isOk) {
+      toast.error('Có lỗi xảy ra khi duyệt đăng ký!');
+    } else {
+      toast.success('Đã duyệt đăng ký');
+    }
+    setLoading(false);
+  };
+
+  const handleReject = async (registration) => {
+    setInputDialog({
+      isOpen: true,
+      title: 'Từ chối đăng ký',
+      label: 'Nhập lý do từ chối:',
+      defaultValue: '',
+      onConfirm: async (reason) => {
+        if (!reason) return;
+        setLoading(true);
+        const updatedRegistration = {
+          ...registration,
+          status: 'rejected',
+          updatedAt: new Date().toISOString(),
+          data: JSON.stringify({ ...JSON.parse(registration.data || '{}'), rejectedBy: user.id, rejectedAt: new Date().toISOString(), rejectionReason: reason })
+        };
+        
+        const result = await window.dataSdk.update(updatedRegistration);
+        if (!result.isOk) {
+          toast.error('Có lỗi xảy ra khi từ chối đăng ký!');
+        } else {
+          toast.success('Đã từ chối đăng ký');
+        }
+        setLoading(false);
+      }
+    });
+  };
+
+  const filteredRegistrations = registrations.filter(reg => {
+    if (filter === 'all') return true;
+    return reg.status === filter;
+  });
+
+  return (
+    <div className="space-y-6 fade-in">
+      <InputDialog
+        isOpen={inputDialog.isOpen}
+        title={inputDialog.title}
+        label={inputDialog.label}
+        defaultValue={inputDialog.defaultValue}
+        onConfirm={inputDialog.onConfirm}
+        onCancel={() => setInputDialog({ ...inputDialog, isOpen: false, onConfirm: null })}
+        confirmText="Gửi"
+        cancelText="Hủy"
+        multiline={true}
+      />
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
+          Quản lý đăng ký & Xét duyệt
+        </h1>
+        <div className="flex items-center space-x-4">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">Tất cả</option>
+            <option value="pending">Chờ duyệt</option>
+            <option value="approved">Đã duyệt</option>
+            <option value="rejected">Đã từ chối</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Thí sinh
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Hạng mục
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ngày đăng ký
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Trạng thái
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Thao tác
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredRegistrations.slice((page - 1) * itemsPerPage, page * itemsPerPage).map(registration => {
+                const data = JSON.parse(registration.data || '{}');
+                return (
+                  <tr key={registration.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {registration.title}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {data.email || 'Chưa có email'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {registration.category}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatDateTime(registration.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`status-badge status-${registration.status}`}>
+                        {registration.status === 'pending' && 'Chờ duyệt'}
+                        {registration.status === 'approved' && 'Đã duyệt'}
+                        {registration.status === 'rejected' && 'Đã từ chối'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      {registration.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(registration)}
+                            disabled={loading}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            Duyệt
+                          </button>
+                          <button
+                            onClick={() => handleReject(registration)}
+                            disabled={loading}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Từ chối
+                          </button>
+                        </>
+                      )}
+                      {registration.status === 'rejected' && data.rejectionReason && (
+                        <span className="text-xs text-gray-500" title={data.rejectionReason}>
+                          Xem lý do
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filteredRegistrations.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              {filter === 'all' ? 'Chưa có đăng ký nào' : `Không có đăng ký ${filter === 'pending' ? 'chờ duyệt' : filter === 'approved' ? 'đã duyệt' : 'bị từ chối'}`}
+            </div>
+          )}
+          {filteredRegistrations.length > itemsPerPage && (
+            <div className="flex items-center justify-center space-x-3 py-4">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+              {Array.from({ length: Math.ceil(filteredRegistrations.length / itemsPerPage) }).map((_, idx) => (
+                <button key={idx} onClick={() => setPage(idx + 1)} className={`px-3 py-1 rounded ${page === idx + 1 ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>{idx + 1}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(Math.ceil(filteredRegistrations.length / itemsPerPage), p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

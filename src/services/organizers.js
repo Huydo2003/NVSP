@@ -1,0 +1,47 @@
+import { apiFetch } from './api';
+
+export async function fetchOrganizers() {
+  try {
+    const res = await apiFetch('/api/organizations');
+    return res || [];
+  } catch (err) {
+    // return empty array on 404 or other API problems to let UI fallback
+    return [];
+  }
+}
+
+export async function createOrganizer(data) {
+  try {
+    const res = await apiFetch('/api/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return res;
+  } catch (err) {
+    // propagate null to indicate failure so caller can fallback to local SDK
+    return null;
+  }
+}
+
+export async function updateOrganizer(id, data) {
+  try {
+    const res = await apiFetch(`/api/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    return res;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function deleteOrganizer(id) {
+  try {
+    const res = await apiFetch(`/api/organizations/${id}`, {
+      method: 'DELETE'
+    });
+    return res;
+  } catch (err) {
+    return null;
+  }
+}

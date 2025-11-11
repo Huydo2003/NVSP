@@ -1,0 +1,907 @@
+﻿const express = require('express');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+require('dotenv').config();
+
+const pool = require('./db');
+const auth = require('./auth');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+app.get('/api/ping', (req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// POST /api/login
+// body: { username, password }
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ message: 'username and password required' });
+
+    const [rows] = await pool.execute('SELECT * FROM taikhoan WHERE tenTK = ? LIMIT 1', [username]);
+    if (!rows || rows.length === 0) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const user = rows[0];
+
+    // check trang_thai (active account)
+    if (user.trang_thai !== null && user.trang_thai !== undefined && Number(user.trang_thai) !== 1) {
+      return res.status(403).json({ message: 'Account is inactive' });
+    }
+
+    const stored = user.matKhau || '';
+    const passwordMatches = password === stored;
+
+    if (!passwordMatches) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const payload = {
+      id: user.Id,
+      username: user.tenTK,
+      roleId: user.id_loaiTK || null,
+    };
+
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+
+    // optionally fetch role name
+    let roleName = null;
+    try {
+      const [r] = await pool.execute('SELECT tenLoaiTK FROM loaitaikhoan WHERE Id_loaiTK = ? LIMIT 1', [payload.roleId]);
+      if (r && r.length) roleName = r[0].tenLoaiTK;
+    } catch (err) {
+      // ignore role fetch error
+    }
+
+    const safeUser = {
+      id: user.Id,
+      username: user.tenTK,
+      email: user.email,
+      roleId: payload.roleId,
+      roleName,
+      createdAt: user.ngay_tao || null,
+      // require password change if password is default (same as username) or placeholder
+      mustChangePassword: (payload.roleId !== 1) && ((user.matKhau === user.tenTK) || (user.matKhau === 'changeme'))
+    };
+
+    res.json({ token, user: safeUser });
+  } catch (err) {
+    console.error('Login error', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Protected route example
+app.get('/api/me', auth, async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ message: 'Invalid token payload' });
+    const [rows] = await pool.execute('SELECT Id, tenTK, email, id_loaiTK, trang_thai, ngay_tao, matKhau FROM taikhoan WHERE Id = ? LIMIT 1', [userId]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    const u = rows[0];
+
+    // Fetch role name in Vietnamese
+    let roleName = null;
+    try {
+      const [r] = await pool.execute('SELECT tenLoaiTK FROM loaitaikhoan WHERE Id_loaiTK = ? LIMIT 1', [u.id_loaiTK]);
+      if (r && r.length) {
+        roleName = r[0].tenLoaiTK;
+        // Map technical names to display names if needed
+        const roleDisplayNames = {
+          'Admin': 'Quản trị viên',
+          'BanToChuc': 'Ban tổ chức',
+          'CanBoLop': 'Cán bộ lớp',
+          'SinhVien': 'Sinh viên',
+          'GiamKhao': 'Giám khảo',
+          'GiangVien': 'Giảng viên'
+        };
+        roleName = roleDisplayNames[roleName] || roleName;
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    const mustChangePassword = (u.id_loaiTK !== 1) && ((u.matKhau === u.tenTK) || (u.matKhau === 'changeme'));
+
+    res.json({ id: u.Id, username: u.tenTK, email: u.email, roleId: u.id_loaiTK, roleName, active: u.trang_thai, createdAt: u.ngay_tao, mustChangePassword });
+  } catch (err) {
+    console.error('GET /api/me error', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// User Management Routes (Admin only)
+app.get('/api/users', auth, async (req, res) => {
+  try {
+    if (req.user.roleId !== 1) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const [rows] = await pool.execute(`
+      SELECT t.Id, t.tenTK, t.email, t.id_loaiTK, t.trang_thai, t.ngay_tao,
+             lt.tenLoaiTK as roleName
+      FROM taikhoan t 
+      LEFT JOIN loaitaikhoan lt ON t.id_loaiTK = lt.Id_loaiTK 
+      ORDER BY t.Id DESC
+    `);
+
+    res.json(rows.map(u => ({
+      id: u.Id,
+      username: u.tenTK,
+      email: u.email,
+      roleId: u.id_loaiTK,
+      roleName: u.roleName,
+      active: u.trang_thai,
+      createdAt: u.ngay_tao
+    })));
+  } catch (err) {
+    console.error('GET /api/users error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/users', auth, async (req, res) => {
+  try {
+    if (req.user.roleId !== 1) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    let { username, password, email, roleId } = req.body || {};
+    if (!username || !password || !email || (roleId === undefined || roleId === null)) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // normalize roleId to number when possible
+    roleId = Number(roleId) || roleId;
+
+    // Check username/email exists
+    const [existing] = await pool.execute('SELECT Id FROM taikhoan WHERE tenTK = ? OR email = ?', [username, email]);
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ message: 'Tên đăng nhập hoặc email đã tồn tại' });
+    }
+
+    // Store password as plain text per request
+    const [result] = await pool.execute(
+      'INSERT INTO taikhoan (tenTK, matKhau, email, id_loaiTK, trang_thai, ngay_tao) VALUES (?, ?, ?, ?, 1, NOW())',
+      [username, password, email, roleId]
+    );
+
+    if (result.insertId) {
+      const [rows] = await pool.execute(
+        'SELECT t.*, lt.tenLoaiTK as roleName FROM taikhoan t LEFT JOIN loaitaikhoan lt ON t.id_loaiTK = lt.Id_loaiTK WHERE t.Id = ?',
+        [result.insertId]
+      );
+      
+      const user = rows[0];
+      res.json({
+        id: user.Id,
+        username: user.tenTK,
+        email: user.email,
+        roleId: user.id_loaiTK,
+        roleName: user.roleName,
+        active: user.trang_thai,
+        createdAt: user.ngay_tao
+      });
+    } else {
+      throw new Error('Failed to create user');
+    }
+  } catch (err) {
+    console.error('POST /api/users error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/users/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // allow admin or the user themself to update
+    if (req.user.roleId !== 1 && Number(req.user.id) !== Number(id)) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    let { username, email, roleId, password, currentPassword } = req.body || {};
+
+    // ensure user exists
+    const [existingUserRows] = await pool.execute('SELECT Id, id_loaiTK, matKhau FROM taikhoan WHERE Id = ?', [id]);
+    if (!existingUserRows || existingUserRows.length === 0) {
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
+    }
+
+    // Don't allow editing admin if not self
+    if (Number(id) !== req.user.id) {
+      const targetRole = existingUserRows[0].id_loaiTK;
+      if (targetRole === 1) {
+        return res.status(403).json({ message: 'Không thể sửa tài khoản admin khác' });
+      }
+    }
+
+    // Check username exists (except self)
+    if (username) {
+      const [ux] = await pool.execute('SELECT Id FROM taikhoan WHERE tenTK = ? AND Id != ?', [username, id]);
+      if (ux && ux.length > 0) {
+        return res.status(400).json({ message: 'Tên đăng nhập đã được sử dụng' });
+      }
+    }
+
+    // Check email exists (except self)
+    if (email) {
+      const [ex] = await pool.execute('SELECT Id FROM taikhoan WHERE email = ? AND Id != ?', [email, id]);
+      if (ex && ex.length > 0) {
+        return res.status(400).json({ message: 'Email đã được sử dụng' });
+      }
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (username) {
+      updates.push('tenTK = ?');
+      params.push(username);
+    }
+    if (email) {
+      updates.push('email = ?');
+      params.push(email);
+    }
+    // Only admin can change roleId
+    if (roleId !== undefined && roleId !== null) {
+      if (req.user.roleId !== 1) return res.status(403).json({ message: 'Không có quyền cập nhật vai trò' });
+      updates.push('id_loaiTK = ?');
+      params.push(Number(roleId));
+    }
+    if (password) {
+      // If the user is updating their own password and provided currentPassword, verify it
+      if (Number(req.user.id) === Number(id) && currentPassword) {
+        const stored = existingUserRows[0].matKhau || '';
+        if (currentPassword !== stored) {
+          return res.status(400).json({ message: 'Mật khẩu hiện tại không đúng' });
+        }
+      }
+      updates.push('matKhau = ?');
+      params.push(password);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ message: 'Không có thông tin cần cập nhật' });
+    }
+
+    params.push(id);
+    await pool.execute(`UPDATE taikhoan SET ${updates.join(', ')} WHERE Id = ?`, params);
+
+    const [rows] = await pool.execute(
+      'SELECT t.*, lt.tenLoaiTK as roleName FROM taikhoan t LEFT JOIN loaitaikhoan lt ON t.id_loaiTK = lt.Id_loaiTK WHERE t.Id = ?',
+      [id]
+    );
+    
+    const user = rows[0];
+    res.json({
+      id: user.Id,
+      username: user.tenTK,
+      email: user.email,
+      roleId: user.id_loaiTK,
+      roleName: user.roleName,
+      active: user.trang_thai,
+      createdAt: user.ngay_tao
+    });
+  } catch (err) {
+    console.error('PUT /api/users/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/users/:id', auth, async (req, res) => {
+  try {
+    if (req.user.roleId !== 1) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    
+    // Don't allow deleting self or other admins
+    if (Number(id) === req.user.id) {
+      return res.status(400).json({ message: 'Không thể xóa tài khoản đang đăng nhập' });
+    }
+
+    const [check] = await pool.execute('SELECT id_loaiTK FROM taikhoan WHERE Id = ?', [id]);
+    if (!check || check.length === 0) {
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
+    }
+    if (check[0].id_loaiTK === 1) {
+      return res.status(403).json({ message: 'Không thể xóa tài khoản admin khác' });
+    }
+
+    await pool.execute('DELETE FROM taikhoan WHERE Id = ?', [id]);
+    res.json({ message: 'Đã xóa tài khoản' });
+  } catch (err) {
+    console.error('DELETE /api/users/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/users/:id/toggle-status', auth, async (req, res) => {
+  try {
+    if (req.user.roleId !== 1) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    
+    // Don't allow toggling self or other admins
+    if (Number(id) === req.user.id) {
+      return res.status(400).json({ message: 'Không thể vô hiệu hóa tài khoản đang đăng nhập' });
+    }
+
+    const [check] = await pool.execute('SELECT id_loaiTK, trang_thai FROM taikhoan WHERE Id = ?', [id]);
+    if (!check || check.length === 0) {
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
+    }
+    if (check[0].id_loaiTK === 1) {
+      return res.status(403).json({ message: 'Không thể vô hiệu hóa tài khoản admin khác' });
+    }
+
+    const currentStatus = Number(check[0].trang_thai) === 1 ? 1 : 0;
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    await pool.execute(
+      'UPDATE taikhoan SET trang_thai = ? WHERE Id = ?',
+      [newStatus, id]
+    );
+
+    const [rows] = await pool.execute(
+      'SELECT t.*, lt.tenLoaiTK as roleName FROM taikhoan t LEFT JOIN loaitaikhoan lt ON t.id_loaiTK = lt.Id_loaiTK WHERE t.Id = ?',
+      [id]
+    );
+    
+    const user = rows[0];
+    res.json({
+      id: user.Id,
+      username: user.tenTK,
+      email: user.email,
+      roleId: user.id_loaiTK,
+      roleName: user.roleName,
+      active: user.trang_thai,
+      createdAt: user.ngay_tao
+    });
+  } catch (err) {
+    console.error('POST /api/users/:id/toggle-status error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Events (hoatdong) CRUD
+// GET /api/events - list activities (mapped to front-end event model)
+app.get('/api/events', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT h.Id_HoatDong as id,
+             h.tenHoatDong as title,
+             COALESCE(ht.quyChe, '') as description,
+             h.ngayMoDki as startDate,
+             h.ngayDongDki as endDate,
+             h.DiaDiem as location,
+             COALESCE(h.soThanhVienToiDa, 0) as maxParticipants,
+             s.Id_SuKien as eventId,
+             s.tenSukien as eventName,
+             h.Thi as isCompetition,
+             h.hinhThucDk as hinhThucDk,
+             COUNT(d.Id_DangKi) as currentParticipants
+      FROM hoatdong h
+      LEFT JOIN hoatdongthi ht ON ht.id_HoatDong = h.Id_HoatDong
+      LEFT JOIN sukien s ON h.idSuKien = s.Id_SuKien
+      LEFT JOIN dangki d ON d.id_HoatDong = h.Id_HoatDong
+      GROUP BY h.Id_HoatDong
+      ORDER BY h.Id_HoatDong DESC
+    `);
+
+    const now = new Date();
+    const mapped = (rows || []).map(r => {
+      const start = r.startDate ? new Date(r.startDate) : null;
+      const end = r.endDate ? new Date(r.endDate) : null;
+      let status = 'draft';
+      if (start && end) {
+        if (now < start) status = 'draft';
+        else if (now >= start && now <= end) status = 'open';
+        else status = 'closed';
+      }
+      return {
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        location: r.location,
+        maxParticipants: Number(r.maxParticipants) || 0,
+        currentParticipants: Number(r.currentParticipants) || 0,
+        eventId: r.eventId || null,
+        eventName: r.eventName || null,
+        isCompetition: Number(r.isCompetition) === 1,
+        hinhThucDk: r.hinhThucDk || null,
+        status
+      };
+    });
+
+    res.json(mapped);
+  } catch (err) {
+    console.error('GET /api/events error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// list sukien (event types)
+app.get('/api/sukien', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_SuKien as id, tenSukien as name FROM sukien ORDER BY Id_SuKien DESC');
+    res.json(rows.map(r => ({ id: r.id, name: r.name })));
+  } catch (err) {
+    console.error('GET /api/sukien error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Organizations (Ban Tổ Chức) CRUD
+app.get('/api/organizations', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT b.Id as id, b.tenBanToChuc as name, b.Id_CapBan, b.Id_TK, t.tenTK as username, t.email, t.id_loaiTK as roleId
+      FROM bantochuc b
+      LEFT JOIN taikhoan t ON b.Id_TK = t.Id
+      ORDER BY b.Id DESC
+    `);
+
+    res.json((rows || []).map(r => ({ id: r.id, name: r.name, Id_CapBan: r.Id_CapBan, Id_TK: r.Id_TK, contact: r.username ? { id: r.Id_TK, username: r.username, email: r.email, roleId: r.roleId } : null })));
+  } catch (err) {
+    console.error('GET /api/organizations error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.get('/api/organizations/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute(`
+      SELECT b.Id as id, b.tenBanToChuc as name, b.Id_CapBan, b.Id_TK, t.tenTK as username, t.email, t.id_loaiTK as roleId
+      FROM bantochuc b
+      LEFT JOIN taikhoan t ON b.Id_TK = t.Id
+      WHERE b.Id = ?
+      LIMIT 1
+    `, [id]);
+
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Ban tổ chức không tồn tại' });
+    const r = rows[0];
+    res.json({ id: r.id, name: r.name, Id_CapBan: r.Id_CapBan, Id_TK: r.Id_TK, contact: r.username ? { id: r.Id_TK, username: r.username, email: r.email, roleId: r.roleId } : null });
+  } catch (err) {
+    console.error('GET /api/organizations/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/organizations', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    let { tenBanToChuc, Id_CapBan, Id_TK } = req.body || {};
+    if (!tenBanToChuc) return res.status(400).json({ message: 'Tên ban tổ chức là bắt buộc' });
+
+    // validate Id_TK if provided
+    if (Id_TK) {
+      const [tk] = await pool.execute('SELECT Id, id_loaiTK FROM taikhoan WHERE Id = ? LIMIT 1', [Id_TK]);
+      if (!tk || tk.length === 0) return res.status(400).json({ message: 'Người dùng (Id_TK) không tồn tại' });
+
+      // try to find GiangVien role id (multiple possible name variants)
+      const [roleRows] = await pool.execute("SELECT Id_loaiTK FROM loaitaikhoan WHERE tenLoaiTK IN ('GiangVien','Giảng viên','Giang Vien','Giảng_Viên') LIMIT 1");
+      if (roleRows && roleRows.length > 0) {
+        const giangVienRoleId = roleRows[0].Id_loaiTK;
+        if (Number(tk[0].id_loaiTK) !== Number(giangVienRoleId)) {
+          return res.status(400).json({ message: 'Người dùng Id_TK phải có quyền GiangVien' });
+        }
+      }
+      // if role not found, we only ensure user exists
+    }
+
+    // ensure name uniqueness (optional)
+    const [exist] = await pool.execute('SELECT Id FROM bantochuc WHERE tenBanToChuc = ? LIMIT 1', [tenBanToChuc]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: 'Tên ban tổ chức đã tồn tại' });
+    }
+
+    const [result] = await pool.execute('INSERT INTO bantochuc (tenBanToChuc, Id_CapBan, Id_TK) VALUES (?, ?, ?)', [tenBanToChuc, Id_CapBan || null, Id_TK || null]);
+    const [rows] = await pool.execute(`
+      SELECT b.Id as id, b.tenBanToChuc as name, b.Id_CapBan, b.Id_TK, t.tenTK as username, t.email, t.id_loaiTK as roleId
+      FROM bantochuc b
+      LEFT JOIN taikhoan t ON b.Id_TK = t.Id
+      WHERE b.Id = ?
+      LIMIT 1
+    `, [result.insertId]);
+
+    const r = rows[0];
+    res.status(201).json({ id: r.id, name: r.name, Id_CapBan: r.Id_CapBan, Id_TK: r.Id_TK, contact: r.username ? { id: r.Id_TK, username: r.username, email: r.email, roleId: r.roleId } : null });
+  } catch (err) {
+    console.error('POST /api/organizations error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/organizations/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    let { tenBanToChuc, Id_CapBan, Id_TK } = req.body || {};
+
+    // ensure exists
+    const [exists] = await pool.execute('SELECT Id FROM bantochuc WHERE Id = ? LIMIT 1', [id]);
+    if (!exists || exists.length === 0) return res.status(404).json({ message: 'Ban tổ chức không tồn tại' });
+
+    // validate Id_TK if provided
+    if (Id_TK !== undefined && Id_TK !== null && Id_TK !== '') {
+      const [tk] = await pool.execute('SELECT Id, id_loaiTK FROM taikhoan WHERE Id = ? LIMIT 1', [Id_TK]);
+      if (!tk || tk.length === 0) return res.status(400).json({ message: 'Người dùng (Id_TK) không tồn tại' });
+
+      const [roleRows] = await pool.execute("SELECT Id_loaiTK FROM loaitaikhoan WHERE tenLoaiTK IN ('GiangVien','Giảng viên','Giang Vien','Giảng_Viên') LIMIT 1");
+      if (roleRows && roleRows.length > 0) {
+        const giangVienRoleId = roleRows[0].Id_loaiTK;
+        if (Number(tk[0].id_loaiTK) !== Number(giangVienRoleId)) {
+          return res.status(400).json({ message: 'Người dùng Id_TK phải có quyền GiangVien' });
+        }
+      }
+    }
+
+    const updates = [];
+    const params = [];
+    if (tenBanToChuc !== undefined) { updates.push('tenBanToChuc = ?'); params.push(tenBanToChuc); }
+    if (Id_CapBan !== undefined) { updates.push('Id_CapBan = ?'); params.push(Id_CapBan || null); }
+    if (Id_TK !== undefined) { updates.push('Id_TK = ?'); params.push(Id_TK || null); }
+
+    if (updates.length > 0) {
+      params.push(id);
+      await pool.execute(`UPDATE bantochuc SET ${updates.join(', ')} WHERE Id = ?`, params);
+    }
+
+    const [rows] = await pool.execute(`
+      SELECT b.Id as id, b.tenBanToChuc as name, b.Id_CapBan, b.Id_TK, t.tenTK as username, t.email, t.id_loaiTK as roleId
+      FROM bantochuc b
+      LEFT JOIN taikhoan t ON b.Id_TK = t.Id
+      WHERE b.Id = ?
+      LIMIT 1
+    `, [id]);
+
+    const r = rows[0];
+    res.json({ id: r.id, name: r.name, Id_CapBan: r.Id_CapBan, Id_TK: r.Id_TK, contact: r.username ? { id: r.Id_TK, username: r.username, email: r.email, roleId: r.roleId } : null });
+  } catch (err) {
+    console.error('PUT /api/organizations/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/organizations/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    // prevent deleting if linked to events (hoatdong)
+    const [check] = await pool.execute('SELECT COUNT(*) as cnt FROM hoatdong WHERE Id_BanToChuc = ?', [id]);
+    if (check && check[0] && Number(check[0].cnt) > 0) {
+      return res.status(400).json({ message: 'Không thể xóa ban tổ chức đang được sử dụng bởi sự kiện' });
+    }
+
+    await pool.execute('DELETE FROM bantochuc WHERE Id = ?', [id]);
+    res.json({ message: 'Đã xóa ban tổ chức' });
+  } catch (err) {
+    console.error('DELETE /api/organizations/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Account Types (Loại Tài Khoản) CRUD
+app.get('/api/account-types', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_loaiTK, tenLoaiTK FROM loaitaikhoan ORDER BY Id_loaiTK');
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/account-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/account-types', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { tenLoaiTK } = req.body;
+    if (!tenLoaiTK) return res.status(400).json({ message: 'Tên loại tài khoản là bắt buộc' });
+
+    const [result] = await pool.execute('INSERT INTO loaitaikhoan (tenLoaiTK) VALUES (?)', [tenLoaiTK]);
+    const [rows] = await pool.execute('SELECT Id_loaiTK, tenLoaiTK FROM loaitaikhoan WHERE Id_loaiTK = ?', [result.insertId]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/account-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/account-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    const { tenLoaiTK } = req.body;
+    if (!tenLoaiTK) return res.status(400).json({ message: 'Tên loại tài khoản là bắt buộc' });
+
+    await pool.execute('UPDATE loaitaikhoan SET tenLoaiTK = ? WHERE Id_loaiTK = ?', [tenLoaiTK, id]);
+    const [rows] = await pool.execute('SELECT Id_loaiTK, tenLoaiTK FROM loaitaikhoan WHERE Id_loaiTK = ?', [id]);
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/account-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/account-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    await pool.execute('DELETE FROM loaitaikhoan WHERE Id_loaiTK = ?', [id]);
+    
+    res.json({ message: 'Đã xóa loại tài khoản' });
+  } catch (err) {
+    console.error('DELETE /api/account-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Event Types (Loại Sự Kiện) CRUD
+app.get('/api/event-types', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_LoaiSuKien, tenLoaiSuKien FROM loaisukien ORDER BY Id_LoaiSuKien');
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/event-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/event-types', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { tenLoaiSuKien } = req.body;
+    if (!tenLoaiSuKien) return res.status(400).json({ message: 'Tên loại sự kiện là bắt buộc' });
+
+    const [result] = await pool.execute('INSERT INTO loaisukien (tenLoaiSuKien) VALUES (?)', [tenLoaiSuKien]);
+    const [rows] = await pool.execute('SELECT Id_LoaiSuKien, tenLoaiSuKien FROM loaisukien WHERE Id_LoaiSuKien = ?', [result.insertId]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/event-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/event-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    const { tenLoaiSuKien } = req.body;
+    if (!tenLoaiSuKien) return res.status(400).json({ message: 'Tên loại sự kiện là bắt buộc' });
+
+    await pool.execute('UPDATE loaisukien SET tenLoaiSuKien = ? WHERE Id_LoaiSuKien = ?', [tenLoaiSuKien, id]);
+    const [rows] = await pool.execute('SELECT Id_LoaiSuKien, tenLoaiSuKien FROM loaisukien WHERE Id_LoaiSuKien = ?', [id]);
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/event-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/event-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    await pool.execute('DELETE FROM loaisukien WHERE Id_LoaiSuKien = ?', [id]);
+    
+    res.json({ message: 'Đã xóa loại sự kiện' });
+  } catch (err) {
+    console.error('DELETE /api/event-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Certificate Types (Loại Chứng Nhận) CRUD
+app.get('/api/certificates', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_loaiCN, tenloaiCN FROM loaichungnhan ORDER BY Id_loaiCN');
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/certificates error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/certificates', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { tenloaiCN } = req.body;
+    if (!tenloaiCN) return res.status(400).json({ message: 'Tên loại chứng nhận là bắt buộc' });
+
+    const [result] = await pool.execute('INSERT INTO loaichungnhan (tenloaiCN) VALUES (?)', [tenloaiCN]);
+    const [rows] = await pool.execute('SELECT Id_loaiCN, tenloaiCN FROM loaichungnhan WHERE Id_loaiCN = ?', [result.insertId]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/certificates error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/certificates/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    const { tenloaiCN } = req.body;
+    if (!tenloaiCN) return res.status(400).json({ message: 'Tên loại chứng nhận là bắt buộc' });
+
+    await pool.execute('UPDATE loaichungnhan SET tenloaiCN = ? WHERE Id_loaiCN = ?', [tenloaiCN, id]);
+    const [rows] = await pool.execute('SELECT Id_loaiCN, tenloaiCN FROM loaichungnhan WHERE Id_loaiCN = ?', [id]);
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/certificates/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/certificates/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    await pool.execute('DELETE FROM loaichungnhan WHERE Id_loaiCN = ?', [id]);
+    
+    res.json({ message: 'Đã xóa loại chứng nhận' });
+  } catch (err) {
+    console.error('DELETE /api/certificates/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Support Types (Loại Hỗ Trợ) CRUD
+app.get('/api/support-types', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_LoaiHt, tenLoaiHt FROM loaihotro ORDER BY Id_LoaiHt');
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/support-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/support-types', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { tenLoaiHt } = req.body;
+    if (!tenLoaiHt) return res.status(400).json({ message: 'Tên loại hỗ trợ là bắt buộc' });
+
+    const [result] = await pool.execute('INSERT INTO loaihotro (tenLoaiHt) VALUES (?)', [tenLoaiHt]);
+    const [rows] = await pool.execute('SELECT Id_LoaiHt, tenLoaiHt FROM loaihotro WHERE Id_LoaiHt = ?', [result.insertId]);
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/support-types error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/support-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    const { tenLoaiHt } = req.body;
+    if (!tenLoaiHt) return res.status(400).json({ message: 'Tên loại hỗ trợ là bắt buộc' });
+
+    await pool.execute('UPDATE loaihotro SET tenLoaiHt = ? WHERE Id_LoaiHt = ?', [tenLoaiHt, id]);
+    const [rows] = await pool.execute('SELECT Id_LoaiHt, tenLoaiHt FROM loaihotro WHERE Id_LoaiHt = ?', [id]);
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/support-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/support-types/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    const { id } = req.params;
+    await pool.execute('DELETE FROM loaihotro WHERE Id_LoaiHt = ?', [id]);
+    
+    res.json({ message: 'Đã xóa loại hỗ trợ' });
+  } catch (err) {
+    console.error('DELETE /api/support-types/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Organizer Levels (Cấp Ban Tổ Chức) CRUD
+app.get('/api/organizer-levels', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT Id_CapBan, tenCapBan FROM capbantochuc ORDER BY Id_CapBan');
+    // normalize to expected keys
+    res.json((rows || []).map(r => ({ Id_CapBan: r.Id_CapBan, tenCapBan: r.tenCapBan })));
+  } catch (err) {
+    console.error('GET /api/organizer-levels error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.get('/api/organizer-levels/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute('SELECT Id_CapBan, tenCapBan FROM capbantochuc WHERE Id_CapBan = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Cấp ban không tồn tại' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /api/organizer-levels/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/organizer-levels', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { tenCapBan } = req.body || {};
+    if (!tenCapBan) return res.status(400).json({ message: 'Tên cấp ban là bắt buộc' });
+
+    // uniqueness
+    const [exist] = await pool.execute('SELECT Id_CapBan FROM capbantochuc WHERE tenCapBan = ? LIMIT 1', [tenCapBan]);
+    if (exist && exist.length > 0) return res.status(400).json({ message: 'Tên cấp ban đã tồn tại' });
+
+    const [result] = await pool.execute('INSERT INTO capbantochuc (tenCapBan) VALUES (?)', [tenCapBan]);
+    const [rows] = await pool.execute('SELECT Id_CapBan, tenCapBan FROM capbantochuc WHERE Id_CapBan = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/organizer-levels error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/organizer-levels/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    const { tenCapBan } = req.body || {};
+    if (!tenCapBan) return res.status(400).json({ message: 'Tên cấp ban là bắt buộc' });
+
+    await pool.execute('UPDATE capbantochuc SET tenCapBan = ? WHERE Id_CapBan = ?', [tenCapBan, id]);
+    const [rows] = await pool.execute('SELECT Id_CapBan, tenCapBan FROM capbantochuc WHERE Id_CapBan = ?', [id]);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('PUT /api/organizer-levels/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/organizer-levels/:id', auth, async (req, res) => {
+  try {
+    if (![1].includes(Number(req.user.roleId))) return res.status(403).json({ message: 'Không có quyền truy cập' });
+
+    const { id } = req.params;
+    // prevent delete if organizations reference this level
+    const [check] = await pool.execute('SELECT COUNT(*) as cnt FROM bantochuc WHERE Id_CapBan = ?', [id]);
+    if (check && check[0] && Number(check[0].cnt) > 0) {
+      return res.status(400).json({ message: 'Không thể xóa cấp ban đang được sử dụng bởi ban tổ chức' });
+    }
+
+    await pool.execute('DELETE FROM capbantochuc WHERE Id_CapBan = ?', [id]);
+    res.json({ message: 'Đã xóa cấp ban tổ chức' });
+  } catch (err) {
+    console.error('DELETE /api/organizer-levels/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`NVSP auth server listening on http://localhost:${PORT}`);
+});

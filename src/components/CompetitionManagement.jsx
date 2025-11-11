@@ -1,0 +1,460 @@
+/**
+ * CompetitionManagement.jsx - Quản lý hoạt động dự thi
+ * 
+ * Chức năng:
+ * - Xem danh sách hạng mục thi
+ * - Tạo/chỉnh sửa/xóa hạng mục
+ * - Tạo URL và mã QR đăng ký
+ * - Quản lý số lượng thí sinh
+ */
+
+import { useState, useEffect } from 'react';
+import { useApp } from '../hooks/useApp';
+import { generateId } from '../utils/config';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import ConfirmDialog from './ConfirmDialog';
+import { fetchCompetitions } from '../services/competitions';
+
+export default function CompetitionManagement({ user }) {
+  // Danh sách hạng mục thi từ dataSdk
+  const [competitions, setCompetitions] = useState([]);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+  // Điều khiển hiển thị modal form
+  const [showModal, setShowModal] = useState(false);
+  // Lưu hạng mục đang chỉnh sửa
+  const [editingCompetition, setEditingCompetition] = useState(null);
+  // Trạng thái loading khi thao tác
+  const [loading, setLoading] = useState(false);
+  // Dữ liệu form thêm/sửa hạng mục
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    category: '',
+    requirements: '',
+    maxParticipants: '',
+    registrationUrl: '',
+    qrCode: ''
+  });
+  const [confirm, setConfirm] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Đồng ý', cancelText: 'Hủy' });
+
+  const { state } = useApp();
+  const { data, config } = state;
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await fetchCompetitions();
+        if (!mounted) return;
+        if (!rows || !Array.isArray(rows) || rows.length === 0) {
+          setCompetitions([]);
+          return;
+        }
+
+        const mapped = rows.map(r => ({
+          id: r.id,
+          type: 'competition',
+          title: r.title || 'Hạng mục',
+          description: r.description || '',
+          category: '',
+          requirements: '',
+          maxParticipants: r.maxParticipants || 0,
+          currentParticipants: r.currentParticipants || 0,
+          registrationUrl: r.registrationUrl || '',
+          qrCode: r.qrCode || '',
+          createdBy: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: '{}'
+        }));
+
+        setCompetitions(mapped);
+      } catch (err) {
+        console.warn('Failed to load competitions', err);
+        toast('Không thể tải danh sách hạng mục từ server', { icon: '⚠️' });
+        setCompetitions([]);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  /**
+   * Tạo URL đăng ký cho hạng mục thi
+   * - Tự động tạo ID ngẫu nhiên
+   * - Trả về URL đầy đủ cho đăng ký
+   */
+  const generateRegistrationUrl = () => {
+    const baseUrl = 'https://register.nvsp.edu.vn/';
+    const id = generateId();
+    return baseUrl + id;
+  };
+
+  /**
+   * Tạo mã QR cho URL đăng ký
+   * @param {string} url - URL đăng ký cần tạo QR
+   * - Sử dụng QR Code API
+   * - Trả về URL ảnh QR code
+   */
+  const generateQRCode = (url) => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+  };
+
+  /**
+   * Xử lý tạo hoặc cập nhật hạng mục thi
+   * @param {Event} e - Form submit event
+   * - Tạo URL và mã QR đăng ký
+   * - Lưu dữ liệu qua dataSdk
+   * - Kiểm tra giới hạn 999 bản ghi
+   * - Reset form và đóng modal
+   */
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const url = formData.registrationUrl || generateRegistrationUrl();
+    const qr = generateQRCode(url);
+
+    const competitionData = {
+      id: editingCompetition?.id || generateId(),
+      type: 'competition',
+      ...formData,
+      registrationUrl: url,
+      qrCode: qr,
+      maxParticipants: parseInt(formData.maxParticipants) || 0,
+      currentParticipants: editingCompetition?.currentParticipants || 0,
+      createdBy: user.id,
+      createdAt: editingCompetition?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      data: JSON.stringify({...formData, registrationUrl: url, qrCode: qr})
+    };
+
+    try {
+      if (editingCompetition) {
+        const result = await window.dataSdk.update(competitionData);
+        if (!result.isOk) {
+          toast.error('Có lỗi xảy ra khi cập nhật hạng mục!');
+        } else {
+          toast.success('Cập nhật hạng mục thành công');
+        }
+      } else {
+        if (data.length >= 999) {
+          toast.error('Đã đạt giới hạn tối đa 999 bản ghi. Vui lòng xóa một số dữ liệu trước!');
+          setLoading(false);
+          return;
+        }
+        const result = await window.dataSdk.create(competitionData);
+        if (!result.isOk) {
+          toast.error('Có lỗi xảy ra khi tạo hạng mục!');
+        } else {
+          toast.success('Tạo hạng mục thành công');
+        }
+      }
+      
+      setShowModal(false);
+      setEditingCompetition(null);
+      setFormData({
+        title: '',
+        description: '',
+        category: '',
+        requirements: '',
+        maxParticipants: '',
+        registrationUrl: '',
+        qrCode: ''
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error('Có lỗi xảy ra!');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleEdit = (competition) => {
+    setEditingCompetition(competition);
+    const data = JSON.parse(competition.data || '{}');
+    setFormData({
+      title: competition.title,
+      description: competition.description,
+      category: competition.category,
+      requirements: data.requirements || '',
+      maxParticipants: competition.maxParticipants.toString(),
+      registrationUrl: data.registrationUrl || '',
+      qrCode: data.qrCode || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (competition) => {
+    setConfirm({
+      isOpen: true,
+      title: 'Xóa hạng mục',
+      message: 'Bạn có chắc chắn muốn xóa hạng mục này?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+      onConfirm: async () => {
+        setLoading(true);
+        const result = await window.dataSdk.delete(competition);
+        if (!result.isOk) {
+          toast.error('Có lỗi xảy ra khi xóa hạng mục!');
+        } else {
+          toast.success('Đã xóa hạng mục');
+        }
+        setLoading(false);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      <ConfirmDialog
+        isOpen={confirm.isOpen}
+        title={confirm.title}
+        message={confirm.message}
+        confirmText={confirm.confirmText}
+        cancelText={confirm.cancelText}
+        onConfirm={confirm.onConfirm}
+        onCancel={() => setConfirm({ ...confirm, isOpen: false, onConfirm: null })}
+      />
+
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
+          Quản lý hoạt động dự thi
+        </h1>
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: config.primary_color }}
+        >
+          + Thêm hạng mục thi
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {competitions.slice((page - 1) * itemsPerPage, page * itemsPerPage).map(competition => {
+          const data = JSON.parse(competition.data || '{}');
+          return (
+            <div key={competition.id} className="bg-white rounded-lg shadow-md p-6 card-hover">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold" style={{ color: config.text_color }}>
+                  {competition.title}
+                </h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleEdit(competition)}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(competition)}
+                    className="text-red-600 hover:text-red-800"
+                    disabled={loading}
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-sm text-gray-600">{competition.description}</p>
+                <div className="flex items-center text-sm">
+                  <span className="font-medium">Hạng mục:</span>
+                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                    {competition.category}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Thí sinh:</span>
+                  <span className="ml-2">{competition.currentParticipants}/{competition.maxParticipants}</span>
+                </div>
+              </div>
+
+              {data.registrationUrl && (
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium mb-2">Đăng ký:</p>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={data.registrationUrl}
+                      readOnly
+                      className="flex-1 px-2 py-1 text-xs border rounded bg-gray-50"
+                    />
+                    <button
+                      onClick={() => navigator.clipboard.writeText(data.registrationUrl)}
+                      className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  {data.qrCode && (
+                    <div className="mt-2 text-center">
+                      <img
+                        src={data.qrCode}
+                        alt="QR Code"
+                        className="mx-auto w-20 h-20"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <div style={{ display: 'none' }} className="w-20 h-20 mx-auto bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                        QR Code
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {competitions.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <div className="mb-4"></div>
+          <p className="text-lg">Chưa có hạng mục thi nào</p>
+          <p className="text-sm">Hãy thêm hạng mục thi đầu tiên!</p>
+        </div>
+      )}
+
+      {competitions.length > itemsPerPage && (
+        <div className="flex items-center justify-center space-x-3 py-6">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+          {Array.from({ length: Math.ceil(competitions.length / itemsPerPage) }).map((_, idx) => (
+            <button key={idx} onClick={() => setPage(idx + 1)} className={`px-3 py-1 rounded ${page === idx + 1 ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>{idx + 1}</button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(Math.ceil(competitions.length / itemsPerPage), p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+        </div>
+      )}
+
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingCompetition(null);
+          setFormData({
+            title: '',
+            description: '',
+            category: '',
+            requirements: '',
+            maxParticipants: '',
+            registrationUrl: '',
+            qrCode: ''
+          });
+        }}
+        title={editingCompetition ? 'Chỉnh sửa hạng mục thi' : 'Thêm hạng mục thi'}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên hạng mục *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Nhập tên hạng mục"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Danh mục *
+              </label>
+              <select
+                required
+                value={formData.category}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Chọn danh mục</option>
+                <option value="Cá nhân">Cá nhân</option>
+                <option value="Nhóm">Nhóm</option>
+                <option value="Lớp">Lớp</option>
+                <option value="Khoa">Khoa</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mô tả
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập mô tả hạng mục"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Điều kiện tham gia
+            </label>
+            <textarea
+              value={formData.requirements}
+              onChange={(e) => setFormData({...formData, requirements: e.target.value})}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập điều kiện tham gia"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Số lượng thí sinh tối đa
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.maxParticipants}
+                onChange={(e) => setFormData({...formData, maxParticipants: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Nhập số lượng"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                URL đăng ký (tùy chọn)
+              </label>
+              <input
+                type="url"
+                value={formData.registrationUrl}
+                onChange={(e) => setFormData({...formData, registrationUrl: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Để trống để tự động tạo"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: config.primary_color }}
+            >
+              {loading ? 'Đang xử lý...' : (editingCompetition ? 'Cập nhật' : 'Thêm hạng mục')}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

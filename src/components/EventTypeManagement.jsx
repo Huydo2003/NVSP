@@ -1,0 +1,227 @@
+import { useState, useEffect } from 'react';
+import { useApp } from '../hooks/useApp';
+import Modal from './Modal';
+import { fetchEventTypes, createEventType, updateEventType, deleteEventType } from '../services/eventTypes';
+
+export default function EventTypeManagement() {
+  const { state } = useApp();
+  const { config } = state;
+  const [types, setTypes] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ 
+    Id_LoaiSuKien: '',
+    tenLoaiSuKien: '' 
+  });
+
+  useEffect(() => {
+    loadTypes();
+  }, []);
+
+  const loadTypes = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchEventTypes();
+      setTypes(data || []);
+    } catch (err) {
+      console.error('Lỗi tải loại sự kiện:', err);
+      alert('Không thể tải danh sách loại sự kiện');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ Id_LoaiSuKien: '', tenLoaiSuKien: '' });
+    setShowModal(true);
+  };
+
+  const openEdit = (t) => {
+    setEditing(t);
+    setForm({ 
+      Id_LoaiSuKien: t.Id_LoaiSuKien || '',
+      tenLoaiSuKien: t.tenLoaiSuKien || '' 
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (editing) {
+        await updateEventType(editing.Id_LoaiSuKien, { tenLoaiSuKien: form.tenLoaiSuKien });
+        setTypes(prev => prev.map(p => p.Id_LoaiSuKien === editing.Id_LoaiSuKien 
+          ? { ...p, tenLoaiSuKien: form.tenLoaiSuKien } 
+          : p
+        ));
+        alert('Cập nhật loại sự kiện thành công');
+      } else {
+        const newType = await createEventType({ tenLoaiSuKien: form.tenLoaiSuKien });
+        setTypes(prev => [newType, ...prev]);
+        alert('Tạo loại sự kiện thành công');
+      }
+      setShowModal(false);
+    } catch (err) {
+      console.error(err);
+      alert('Có lỗi xảy ra');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (t) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa loại sự kiện này?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteEventType(t.Id_LoaiSuKien);
+      setTypes(prev => prev.filter(p => p.Id_LoaiSuKien !== t.Id_LoaiSuKien));
+      alert('Đã xóa loại sự kiện');
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi khi xóa');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold" style={{ color: config.text_color }}>
+          Loại Sự Kiện
+        </h1>
+        <button 
+          onClick={openCreate} 
+          className="px-4 py-2 text-white rounded-md hover:opacity-90"
+          style={{ backgroundColor: config.primary_color }}
+        >
+          + Thêm loại sự kiện
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  STT
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tên Loại Sự Kiện
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Thao Tác
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                    Đang tải...
+                  </td>
+                </tr>
+              ) : types.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                    Chưa có loại sự kiện nào
+                  </td>
+                </tr>
+              ) : (
+                types.map((t, idx) => (
+                  <tr key={t.Id_LoaiSuKien} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {idx + 1}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {t.Id_LoaiSuKien}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {t.tenLoaiSuKien}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                      <button 
+                        onClick={() => openEdit(t)} 
+                        className="text-indigo-600 hover:text-indigo-900 hover:underline"
+                      >
+                        Sửa
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(t)} 
+                        className="text-red-600 hover:text-red-900 hover:underline"
+                      >
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)} 
+        title={editing ? 'Chỉnh sửa loại sự kiện' : 'Thêm loại sự kiện mới'}
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          {editing && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ID Loại Sự Kiện
+              </label>
+              <input 
+                type="text"
+                disabled
+                value={form.Id_LoaiSuKien}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tên Loại Sự Kiện *
+            </label>
+            <input 
+              required
+              value={form.tenLoaiSuKien}
+              onChange={e => setForm({ ...form, tenLoaiSuKien: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập tên loại sự kiện"
+            />
+          </div>
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)} 
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading}
+              style={{ backgroundColor: config.primary_color }}
+              className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? 'Đang xử lý...' : (editing ? 'Cập nhật' : 'Thêm')}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
