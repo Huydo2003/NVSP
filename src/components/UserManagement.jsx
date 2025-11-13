@@ -10,65 +10,45 @@
 
 import { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
-import { generateId } from '../utils/config';
 import Modal from './Modal';
-import Select from 'react-select';
-import { fetchUsers, createUser, updateUser, deleteUser, toggleUserStatus } from '../services/users';
-import { fetchEvents } from '../services/events';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../services/users';
 import toast from 'react-hot-toast';
 import ConfirmDialog from './ConfirmDialog';
 
 export default function UserManagement({ user }) {
   const [users, setUsers] = useState([]);
-  const [btcGroups, setBtcGroups] = useState([]);
-  const [eventsList, setEventsList] = useState([]);
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
-  const [showBtcModal, setShowBtcModal] = useState(false);
-  const [editingGroup, setEditingGroup] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: 'student',
-    password: '',
-    status: 'active'
+    ma_ca_nhan: '',
+    ho_ten: '',
+    mat_khau: '',
+    loai_tk: 'Sinh viên',
+    email: ''
   });
   const [confirm, setConfirm] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Đồng ý', cancelText: 'Hủy' });
 
   const { state } = useApp();
-  const { data, config } = state;
+  const { config } = state;
 
-  const mapRoleFromNameOrId = (roleName, roleId) => {
-    if (roleName) {
-      const rn = (roleName || '').toLowerCase();
-      if (rn.includes('admin')) return 'admin';
-      if (rn.includes('bantochuc') || rn.includes('ban to chuc') || rn.includes('ban tổ chức')) return 'btc';
-      if (rn.includes('canbolop') || rn.includes('can bo lop') || rn.includes('cán bộ lớp')) return 'cbl';
-      if (rn.includes('sinhvien') || rn.includes('sinh viên')) return 'student';
-      if (rn.includes('giamkhao') || rn.includes('giám khảo')) return 'judge';
-    }
-    if (roleId != null) {
-      const id = Number(roleId);
-      if (id === 1) return 'admin';
-      if (id === 2) return 'btc';
-      if (id === 3) return 'cbl';
-      if (id === 4) return 'student';
-      if (id === 5) return 'judge';
-    }
+  const dbRoleToShort = (r) => {
+    if (!r) return 'student';
+    const s = String(r).toLowerCase();
+    if (s.includes('admin')) return 'admin';
+    if (s.includes('giang') || s.includes('giảng')) return 'giangvien';
+    if (s.includes('sinh')) return 'student';
     return 'student';
   };
 
-  const roleToId = (role) => {
-    switch (role) {
-      case 'admin': return 1;
-      case 'btc': return 2;
-      case 'cbl': return 3;
-      case 'student': return 4;
-      case 'judge': return 5;
-      default: return null;
+  const shortToDbRole = (roleShort) => {
+    switch ((roleShort || '').toLowerCase()) {
+      case 'admin': return 'Admin';
+      case 'giangvien': return 'Giảng viên';
+      case 'student': return 'Sinh viên';
+      default: return roleShort;
     }
   };
 
@@ -76,21 +56,18 @@ export default function UserManagement({ user }) {
     let mounted = true;
 
     (async () => {
-      // Load users from API (always use DB-backed users)
       try {
         const apiUsers = await fetchUsers();
         if (mounted && apiUsers) {
           const mapped = apiUsers.map(u => ({
             id: u.id,
+            ma_ca_nhan: u.ma_ca_nhan,
             type: 'user',
-            name: u.username,
+            name: u.ho_ten,
             email: u.email,
-            role: mapRoleFromNameOrId(u.roleName, u.roleId),
-            status: Number(u.active) === 1 ? 'active' : 'inactive',
-            createdBy: '',
-            createdAt: u.createdAt || new Date().toISOString(),
-            updatedAt: u.createdAt || new Date().toISOString(),
-            data: '{}'
+            role: dbRoleToShort(u.loai_tk),
+            createdAt: u.created_at || new Date().toISOString(),
+            updatedAt: u.updated_at || new Date().toISOString()
           }));
           setUsers(mapped);
         } else if (mounted) {
@@ -101,53 +78,14 @@ export default function UserManagement({ user }) {
         toast.error('Không thể tải danh sách người dùng từ server');
         if (mounted) setUsers([]);
       }
-
-      // Load events for selects from API
-      try {
-        const apiEvents = await fetchEvents();
-        if (mounted && apiEvents) {
-          const mappedEvents = apiEvents.map(ev => ({
-            id: ev.id,
-            type: 'event',
-            title: ev.title || ev.tenHoatDong || ev.name || ev.eventName || '',
-            description: ev.description || ev.moTa || '',
-            startDate: ev.startDate || ev.start || new Date().toISOString(),
-            endDate: ev.endDate || ev.end || new Date().toISOString(),
-            location: ev.location || ev.diaDiem || '',
-            maxParticipants: ev.maxParticipants || ev.soLuong || 0,
-            currentParticipants: ev.currentParticipants || 0,
-            status: ev.status || 'draft',
-            createdBy: ev.createdBy || '',
-            createdAt: ev.createdAt || new Date().toISOString(),
-            updatedAt: ev.updatedAt || new Date().toISOString(),
-            data: '{}'
-          }));
-          setEventsList(mappedEvents.slice(0, 5));
-        } else if (mounted) {
-          setEventsList([]);
-        }
-      } catch (err) {
-        console.error('Failed to load events', err);
-        toast.error('Không thể tải danh sách sự kiện từ server');
-        if (mounted) setEventsList([]);
-      }
-
-      const btcFromData = data.filter(item => item.type === 'btc_group');
-      if (btcFromData.length === 0) {
-        setBtcGroups([]);
-      } else {
-        setBtcGroups(btcFromData);
-      }
     })();
 
     return () => { mounted = false; };
-  }, [data, user]);
+  }, [user]);
 
   const roleOptions = [
     { value: 'student', label: 'Sinh viên' },
-    { value: 'cbl', label: 'Cán bộ lớp' },
-    { value: 'btc', label: 'Ban tổ chức' },
-    { value: 'judge', label: 'Ban giám khảo' },
+    { value: 'giangvien', label: 'Giảng viên' },
     { value: 'admin', label: 'Quản trị viên' }
   ];
 
@@ -157,20 +95,17 @@ export default function UserManagement({ user }) {
       if (!apiUsers) return;
       const mapped = apiUsers.map(u => ({
         id: u.id,
+        ma_ca_nhan: u.ma_ca_nhan,
         type: 'user',
-        name: u.username,
+        name: u.ho_ten,
         email: u.email,
-        role: mapRoleFromNameOrId(u.roleName, u.roleId),
-        status: Number(u.active) === 1 ? 'active' : 'inactive',
-        createdBy: '',
-        createdAt: u.createdAt || new Date().toISOString(),
-        updatedAt: u.createdAt || new Date().toISOString(),
-        data: '{}'
+        role: dbRoleToShort(u.loai_tk),
+        createdAt: u.created_at || new Date().toISOString(),
+        updatedAt: u.updated_at || new Date().toISOString()
       }));
       setUsers(mapped);
     } catch (err) {
       console.error('refreshApiUsers error', err);
-      // ignore
     }
   };
 
@@ -178,95 +113,89 @@ export default function UserManagement({ user }) {
     e.preventDefault();
     setLoading(true);
 
-    const userData = {
-      id: editingUser?.id || generateId(),
-      type: 'user',
-      name: formData.name,
-      email: formData.email,
-      role: formData.role,
-      status: formData.status,
-      createdBy: user.id,
-      createdAt: editingUser?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: JSON.stringify({
-        ...formData,
-        password: formData.password ? formData.password : undefined
-      })
-    };
-
     try {
       if (user && user.role === 'admin') {
-        // Use API
         if (editingUser) {
-          const body = {
-            username: formData.name,
-            email: formData.email,
-            roleId: roleToId(formData.role)
-          };
-          if (formData.password) body.password = formData.password;
-          await updateUser(editingUser.id, body);
-          await refreshApiUsers();
-          toast.success('Cập nhật người dùng thành công');
+          // Cập nhật người dùng
+          const body = {};
+          if (formData.ho_ten) body.ho_ten = formData.ho_ten;
+          if (formData.email !== undefined) body.email = formData.email || null;
+          if (formData.mat_khau) body.mat_khau = formData.mat_khau;
+          if (formData.loai_tk) body.loai_tk = formData.loai_tk; // DB string
+
+          try {
+            await updateUser(editingUser.id, body);
+            await refreshApiUsers();
+            toast.success('Cập nhật người dùng thành công');
+          } catch (err) {
+            if (err.status === 400 && err.body?.message?.includes('Mã cá nhân')) {
+              toast.error('Mã cá nhân đã tồn tại. Vui lòng sử dụng mã cá nhân khác');
+            } else if (err.status === 400 && err.body?.message?.includes('Email')) {
+              toast.error('Email đã tồn tại. Vui lòng sử dụng email khác');
+            } else {
+              toast.error(err.body?.message || 'Có lỗi xảy ra khi cập nhật người dùng');
+            }
+            return; // thoát không reset form
+          }
+
         } else {
-          // create
-          await createUser({ username: formData.name, password: formData.password, email: formData.email, roleId: roleToId(formData.role) });
-          await refreshApiUsers();
-          toast.success('Tạo người dùng thành công');
+          // Thêm người dùng
+          if (!formData.ma_ca_nhan || !formData.ho_ten || !formData.loai_tk) {
+            toast.error('Vui lòng nhập đầy đủ thông tin: Mã cá nhân, Họ tên, Vai trò');
+            setLoading(false);
+            return;
+          }
+
+          const payload = {
+            ma_ca_nhan: formData.ma_ca_nhan,
+            ho_ten: formData.ho_ten,
+            mat_khau: formData.mat_khau && formData.mat_khau.trim() ? formData.mat_khau : formData.ma_ca_nhan,
+            loai_tk: formData.loai_tk, // DB string
+            email: formData.email || null
+          };
+
+          try {
+            await createUser(payload);
+            await refreshApiUsers();
+            toast.success('Tạo người dùng thành công');
+          } catch (err) {
+            if (err.status === 400 && err.body?.message?.includes('Mã cá nhân')) {
+              toast.error('Mã cá nhân đã tồn tại. Vui lòng sử dụng mã cá nhân khác');
+            } else if (err.status === 400 && err.body?.message?.includes('Email')) {
+              toast.error('Email đã tồn tại. Vui lòng sử dụng email khác');
+            } else {
+              toast.error(err.body?.message || 'Có lỗi xảy ra khi tạo người dùng');
+            }
+            return; // thoát không reset form
+          }
         }
       } else {
-        // Fallback to local dataSdk
-        if (editingUser) {
-          const result = await window.dataSdk.update(userData);
-          if (!result.isOk) {
-            toast.error('Có lỗi xảy ra khi cập nhật người dùng!');
-          } else {
-            // update local state so UI reflects username changes
-            setUsers(prev => prev.map(u => u.id === userData.id ? userData : u));
-            toast.success('Cập nhật người dùng thành công');
-          }
-        } else {
-          const result = await window.dataSdk.create(userData);
-          if (!result.isOk) {
-            toast.error('Có lỗi xảy ra khi tạo người dùng!');
-          } else {
-            // add new user to local list
-            setUsers(prev => [userData, ...prev]);
-            toast.success('Tạo người dùng thành công');
-          }
-        }
+        toast.error('Chỉ quản trị viên mới có thể quản lý người dùng');
       }
 
+      // Reset form & modal
       setShowModal(false);
       setEditingUser(null);
-      setFormData({
-        name: '',
-        email: '',
-        role: 'student',
-        password: '',
-        status: 'active'
-      });
-    } catch (err) {
-      console.error(err);
-      toast.error('Có lỗi xảy ra!');
+      setFormData({ ma_ca_nhan: '', ho_ten: '', mat_khau: '', loai_tk: 'Sinh viên', email: '' });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
+
+  const handleEdit = (userItem) => {
+    setEditingUser(userItem);
     setFormData({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      password: '',
-      status: user.status
+      ma_ca_nhan: userItem.ma_ca_nhan,
+      ho_ten: userItem.name,
+      mat_khau: '',
+      loai_tk: shortToDbRole(userItem.role),
+      email: userItem.email || ''
     });
     setShowModal(true);
   };
 
   const handleDelete = async (userItem) => {
-    // open confirm modal instead of window.confirm
     if (userItem.role === 'admin' && users.filter(u => u.role === 'admin').length <= 1) {
       toast.error('Không thể xóa quản trị viên cuối cùng!');
       return;
@@ -286,14 +215,7 @@ export default function UserManagement({ user }) {
             await refreshApiUsers();
             toast.success('Đã xóa người dùng');
           } else {
-            const result = await window.dataSdk.delete(userItem);
-            if (!result.isOk) {
-              toast.error('Có lỗi xảy ra khi xóa người dùng!');
-            } else {
-              // remove from local list
-              setUsers(prev => prev.filter(u => u.id !== userItem.id));
-              toast.success('Đã xóa người dùng');
-            }
+            toast.error('Chỉ quản trị viên mới có thể xóa người dùng');
           }
         } catch (err) {
           console.error(err);
@@ -303,39 +225,6 @@ export default function UserManagement({ user }) {
         }
       }
     });
-  };
-
-  const handleToggleStatus = async (userItem) => {
-    if (userItem.role === 'admin' && userItem.status === 'active' && users.filter(u => u.role === 'admin' && u.status === 'active').length <= 1) {
-      toast.error('Không thể vô hiệu hóa quản trị viên cuối cùng!');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (user && user.role === 'admin') {
-        await toggleUserStatus(userItem.id);
-        await refreshApiUsers();
-      } else {
-        const updatedUser = {
-          ...userItem,
-          status: userItem.status === 'active' ? 'inactive' : 'active',
-          updatedAt: new Date().toISOString()
-        };
-
-        const result = await window.dataSdk.update(updatedUser);
-        if (!result.isOk) {
-          toast.error('Có lỗi xảy ra khi cập nhật trạng thái người dùng!');
-        } else {
-          // update local users list
-          setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Có lỗi xảy ra khi cập nhật trạng thái người dùng!');
-    }
-    setLoading(false);
   };
 
   return (
@@ -361,12 +250,6 @@ export default function UserManagement({ user }) {
           >
             Thêm người dùng
           </button>
-          <button
-            onClick={() => setShowBtcModal(true)}
-            className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity bg-gray-700"
-          >
-            Quản lý BTC
-          </button>
         </div>
       </div>
 
@@ -377,31 +260,28 @@ export default function UserManagement({ user }) {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã cá nhân</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.slice((page - 1) * itemsPerPage, page * itemsPerPage).map((user, idx) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+              {users.slice((page - 1) * itemsPerPage, page * itemsPerPage).map((u, idx) => (
+                <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{(page - 1) * itemsPerPage + idx + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                    <div className="text-sm text-gray-500">ID: {user.id}</div>
+                    <div className="text-sm font-medium text-gray-900">{u.name}</div>
+                    <div className="text-sm text-gray-500">ID: {u.id}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.ma_ca_nhan}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.email}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">{roleOptions.find(r => r.value === user.role)?.label || user.role}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{user.status === 'active' ? 'Hoạt động' : 'Vô hiệu'}</span>
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">{roleOptions.find(r => r.value === u.role)?.label || u.role}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button onClick={() => handleEdit(user)} className="text-blue-600 hover:text-blue-900">Sửa</button>
-                    <button onClick={() => handleToggleStatus(user)} className={`${user.status === 'active' ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'}`}>{user.status === 'active' ? 'Vô hiệu' : 'Kích hoạt'}</button>
-                    <button onClick={() => handleDelete(user)} className="text-red-600 hover:text-red-900">Xóa</button>
+                    <button onClick={() => handleEdit(u)} className="text-blue-600 hover:text-blue-900">Sửa</button>
+                    <button onClick={() => handleDelete(u)} className="text-red-600 hover:text-red-900">Xóa</button>
                   </td>
                 </tr>
               ))}
@@ -430,13 +310,7 @@ export default function UserManagement({ user }) {
         onClose={() => {
           setShowModal(false);
           setEditingUser(null);
-          setFormData({
-            name: '',
-            email: '',
-            role: 'student',
-            password: '',
-            status: 'active'
-          });
+          setFormData({ ma_ca_nhan: '', ho_ten: '', mat_khau: '', loai_tk: 'Sinh viên', email: '' });
         }}
         title={editingUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
         size="md"
@@ -444,13 +318,28 @@ export default function UserManagement({ user }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tên tài khoản *
+              Mã cá nhân *
+            </label>
+            <input
+              type="text"
+              required={!editingUser}
+              value={formData.ma_ca_nhan}
+              onChange={(e) => setFormData({ ...formData, ma_ca_nhan: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập mã cá nhân"
+              disabled={!!editingUser}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Họ và tên *
             </label>
             <input
               type="text"
               required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={formData.ho_ten}
+              onChange={(e) => setFormData({ ...formData, ho_ten: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Nhập họ tên"
             />
@@ -463,8 +352,8 @@ export default function UserManagement({ user }) {
             <input
               type="password"
               required={!editingUser}
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              value={formData.mat_khau}
+              onChange={(e) => setFormData({ ...formData, mat_khau: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder={editingUser ? 'Nhập mật khẩu mới' : 'Nhập mật khẩu'}
             />
@@ -476,12 +365,12 @@ export default function UserManagement({ user }) {
             </label>
             <select
               required
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              value={formData.loai_tk}
+              onChange={(e) => setFormData({ ...formData, loai_tk: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {roleOptions.map(role => (
-                <option key={role.value} value={role.value}>
+                <option key={role.value} value={role.value === 'admin' ? 'Admin' : (role.value === 'giangvien' ? 'Giảng viên' : 'Sinh viên')}>
                   {role.label}
                 </option>
               ))}
@@ -490,31 +379,15 @@ export default function UserManagement({ user }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email *
+              Email
             </label>
             <input
               type="email"
-              required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Nhập email"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Trạng thái *
-            </label>
-            <select
-              required
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="active">Hoạt động</option>
-              <option value="inactive">Vô hiệu</option>
-            </select>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">
@@ -535,216 +408,6 @@ export default function UserManagement({ user }) {
             </button>
           </div>
         </form>
-      </Modal>
-
-      {/* BTC groups management modal */}
-      <Modal
-        isOpen={showBtcModal}
-        onClose={() => {
-          setShowBtcModal(false);
-          setEditingGroup(null);
-        }}
-        title={editingGroup ? 'Chỉnh sửa BTC' : 'Quản lý BTC (Ban tổ chức)'}
-        size="lg"
-      >
-        <div className="space-y-4">
-          <div>
-            <button
-              onClick={() => {
-                // Create empty group editing state
-                setEditingGroup({ id: null, title: '', eventId: '', members: [], judges: [] });
-              }}
-              className="px-3 py-2 bg-green-600 text-white rounded-md"
-            >
-              + Tạo BTC mới
-            </button>
-          </div>
-
-          {/* List existing groups */}
-          <div>
-            {btcGroups.length === 0 && (
-              <div className="text-sm text-gray-500">Chưa có BTC nào được tạo.</div>
-            )}
-            {btcGroups.map(group => (
-              <div key={group.id} className="border rounded p-3 mb-2 flex justify-between items-center">
-                <div>
-                  <div className="font-medium">{group.title || 'BTC không tên'}</div>
-                  <div className="text-sm text-gray-600">Sự kiện: {eventsList.find(ev => ev.id === group.eventId)?.title || 'N/A'}</div>
-                  <div className="text-sm text-gray-600">Thành viên: {(group.members || []).length} | BGK: {(group.judges || []).length}</div>
-                </div>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => {
-                      setEditingGroup(group);
-                    }}
-                    className="px-2 py-1 text-sm bg-yellow-100 rounded"
-                  >
-                    Sửa
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setConfirm({
-                        isOpen: true,
-                        title: 'Xóa BTC',
-                        message: 'Bạn có chắc chắn muốn xóa BTC này?',
-                        confirmText: 'Xóa',
-                        cancelText: 'Hủy',
-                        onConfirm: async () => {
-                          setLoading(true);
-                          const res = await window.dataSdk.delete(group);
-                          if (!res.isOk) toast.error('Xóa thất bại');
-                          else {
-                            setBtcGroups(prev => prev.filter(g => g.id !== group.id));
-                          }
-                          setLoading(false);
-                        }
-                      });
-                    }}
-                    className="px-2 py-1 text-sm bg-red-100 rounded"
-                  >
-                    Xóa
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Open manage judges if user is admin or member
-                      setEditingGroup(group);
-                    }}
-                    className="px-2 py-1 text-sm bg-blue-100 rounded"
-                  >
-                    Chọn BGK
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Edit/create group form */}
-          {editingGroup && (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                const groupData = {
-                  id: editingGroup.id || generateId(),
-                  type: 'btc_group',
-                  title: editingGroup.title,
-                  eventId: editingGroup.eventId,
-                  members: editingGroup.members || [],
-                  judges: editingGroup.judges || [],
-                  createdBy: user.id,
-                  createdAt: editingGroup.createdAt || new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                  data: JSON.stringify({})
-                };
-
-                try {
-                  if (editingGroup.id) {
-                    const result = await window.dataSdk.update(groupData);
-                    if (!result.isOk) toast.error('Cập nhật BTC thất bại');
-                    else {
-                      setBtcGroups(prev => prev.map(g => g.id === groupData.id ? groupData : g));
-                    }
-                  } else {
-                    const result = await window.dataSdk.create(groupData);
-                    if (!result.isOk) toast.error('Tạo BTC thất bại');
-                    else {
-                      setBtcGroups(prev => [groupData, ...prev]);
-                    }
-                  }
-
-                  toast.success('Lưu thành công');
-                  setShowBtcModal(false);
-                  setEditingGroup(null);
-                } catch (err) {
-                  console.error(err);
-                  toast.error('Có lỗi xảy ra!');
-                }
-                setLoading(false);
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên BTC *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingGroup.title}
-                  onChange={(e) => setEditingGroup({ ...editingGroup, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Nhập tên BTC"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sự kiện liên quan
-                </label>
-                <select
-                  value={editingGroup.eventId}
-                  onChange={(e) => setEditingGroup({ ...editingGroup, eventId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Chọn sự kiện</option>
-                  {eventsList.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Thành viên BTC
-                </label>
-                <Select
-                  isMulti
-                  name="members"
-                  options={users.filter(u => u.role === 'btc' || u.role === 'admin').map(u => ({ value: u.id, label: u.name }))}
-                  className="basic-multi-select"
-                  classNamePrefix="select"
-                  value={(editingGroup.members || []).map(member => ({ value: member, label: member }))}
-                  onChange={(selected) => setEditingGroup({ ...editingGroup, members: selected.map(s => s.value) })}
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  BGK cho sự kiện này
-                </label>
-                <Select
-                  isMulti
-                  name="judges"
-                  options={users.filter(u => u.role === 'judge' || u.role === 'admin').map(u => ({ value: u.id, label: u.name }))}
-                  className="basic-multi-select"
-                  classNamePrefix="select"
-                  value={(editingGroup.judges || []).map(judge => ({ value: judge, label: judge }))}
-                  onChange={(selected) => setEditingGroup({ ...editingGroup, judges: selected.map(s => s.value) })}
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowBtcModal(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: config.accent_color }}
-                >
-                  {loading ? 'Đang xử lý...' : (editingGroup.id ? 'Cập nhật BTC' : 'Tạo BTC')}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
       </Modal>
     </div>
   );

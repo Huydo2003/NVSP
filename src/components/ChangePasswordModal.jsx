@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import toast from 'react-hot-toast';
-import { updateUser } from '../services/users';
-import { fetchMe } from '../services/auth';
+import { changePassword } from '../services/users';
 
 export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordChanged }) {
   const [form, setForm] = useState({
@@ -19,6 +18,15 @@ export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordC
     }
   }, [isOpen]);
 
+  const handleClose = () => {
+    // If user must change password (first-login non-admin), prevent closing
+    if (user && user.mustChangePassword) {
+      toast.error('Bạn phải đổi mật khẩu trước khi tiếp tục');
+      return;
+    }
+    onClose && onClose();
+  };
+
   const handleSubmit = async () => {
     if (!user) return;
     if (!form.newPassword || form.newPassword.length < 6) {
@@ -32,33 +40,28 @@ export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordC
 
     setLoading(true);
     try {
-      // call updateUser; include currentPassword to allow server-side verification if implemented
-      await updateUser(user.id || user.Id, { password: form.newPassword, currentPassword: form.currentPassword });
+      await changePassword(user.id || user.Id, form.currentPassword, form.newPassword);
 
-      // refresh user info
-      try {
-        const me = await fetchMe();
-        if (me) {
-          localStorage.setItem('nvsp_user', JSON.stringify(me));
-          if (onPasswordChanged) onPasswordChanged(me);
-        }
-      } catch (err) {
-        // ignore
-      }
+      // Notify parent to refresh user info
+      if (onPasswordChanged) await onPasswordChanged();
 
       toast.success('Đổi mật khẩu thành công');
-      onClose();
+      // close modal if allowed
+      if (!(user && user.mustChangePassword)) {
+        onClose && onClose();
+      }
     } catch (err) {
       console.error('Change password error', err);
-      toast.error((err && err.body && err.body.message) ? err.body.message : 'Có lỗi khi đổi mật khẩu');
+      const msg = err && err.body && err.body.message ? err.body.message : (err && err.message ? err.message : 'Có lỗi khi đổi mật khẩu');
+      toast.error(msg);
     }
     setLoading(false);
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Yêu cầu đổi mật khẩu" size="md">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Yêu cầu đổi mật khẩu" size="md">
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Hệ thống yêu cầu bạn đổi mật khẩu ngay sau khi đăng nhập (trừ tài khoản admin). Bạn có thể đóng form và tiếp tục nếu không muốn đổi ngay.</p>
+        <p className="text-sm text-gray-600">{user && user.mustChangePassword ? 'Tài khoản của bạn được tạo bởi quản trị viên. Bạn phải đổi mật khẩu lần đầu để tiếp tục.' : 'Hệ thống yêu cầu bạn đổi mật khẩu. Bạn có thể đóng form và tiếp tục nếu không muốn đổi ngay.'}</p>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu hiện tại</label>
@@ -67,7 +70,8 @@ export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordC
             value={form.currentPassword}
             onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Nhập mật khẩu hiện tại (tùy chọn)"
+            placeholder="Nhập mật khẩu hiện tại (nếu có)"
+            disabled={loading}
           />
         </div>
 
@@ -79,6 +83,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordC
             onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="Nhập mật khẩu mới"
+            disabled={loading}
           />
         </div>
 
@@ -90,15 +95,16 @@ export default function ChangePasswordModal({ isOpen, onClose, user, onPasswordC
             onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="Nhập lại mật khẩu mới"
+            disabled={loading}
           />
         </div>
 
         <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-            disabled={loading}
+            disabled={loading || (user && user.mustChangePassword)}
           >
             Đóng và tiếp tục
           </button>

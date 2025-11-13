@@ -1,0 +1,392 @@
+﻿/**
+ * UserManagement.jsx - Quản lý người dùng
+ * 
+ * Chức năng:
+ * - Xem danh sách người dùng
+ * - Thêm/sửa/xóa người dùng
+ * - Phân quyền và vai trò
+ * - Kích hoạt/vô hiệu hóa tài khoản
+ */
+
+import { useState, useEffect } from 'react';
+import { useApp } from '../hooks/useApp';
+import { generateId } from '../utils/config';
+import Modal from './Modal';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../services/users';
+import toast from 'react-hot-toast';
+import ConfirmDialog from './ConfirmDialog';
+
+export default function UserManagement({ user }) {
+  const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    ma_ca_nhan: '',
+    ho_ten: '',
+    mat_khau: '',
+    loai_tk: 'Sinh viên',
+    email: ''
+  });
+  const [confirm, setConfirm] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Đồng ý', cancelText: 'Hủy' });
+
+  const { state } = useApp();
+  const { config } = state;
+
+  const dbRoleToShort = (r) => {
+    if (!r) return 'student';
+    const s = String(r).toLowerCase();
+    if (s.includes('admin')) return 'admin';
+    if (s.includes('giang') || s.includes('giảng')) return 'giangvien';
+    if (s.includes('sinh')) return 'student';
+    return 'student';
+  };
+
+  const shortToDbRole = (roleShort) => {
+    switch ((roleShort || '').toLowerCase()) {
+      case 'admin': return 'Admin';
+      case 'giangvien': return 'Giảng viên';
+      case 'student': return 'Sinh viên';
+      default: return roleShort;
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const apiUsers = await fetchUsers();
+        if (mounted && apiUsers) {
+          const mapped = apiUsers.map(u => ({
+            id: u.id,
+            ma_ca_nhan: u.ma_ca_nhan,
+            type: 'user',
+            name: u.ho_ten,
+            email: u.email,
+            role: dbRoleToShort(u.loai_tk),
+            createdAt: u.created_at || new Date().toISOString(),
+            updatedAt: u.updated_at || new Date().toISOString()
+          }));
+          setUsers(mapped);
+        } else if (mounted) {
+          setUsers([]);
+        }
+      } catch (err) {
+        console.error('Failed to load users', err);
+        toast.error('Không thể tải danh sách người dùng từ server');
+        if (mounted) setUsers([]);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [user]);
+
+  const roleOptions = [
+    { value: 'student', label: 'Sinh viên' },
+    { value: 'giangvien', label: 'Giảng viên' },
+    { value: 'admin', label: 'Quản trị viên' }
+  ];
+
+  const refreshApiUsers = async () => {
+    try {
+      const apiUsers = await fetchUsers();
+      if (!apiUsers) return;
+      const mapped = apiUsers.map(u => ({
+        id: u.id,
+        ma_ca_nhan: u.ma_ca_nhan,
+        type: 'user',
+        name: u.ho_ten,
+        email: u.email,
+        role: dbRoleToShort(u.loai_tk),
+        createdAt: u.created_at || new Date().toISOString(),
+        updatedAt: u.updated_at || new Date().toISOString()
+      }));
+      setUsers(mapped);
+    } catch (err) {
+      console.error('refreshApiUsers error', err);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (user && user.role === 'admin') {
+        if (editingUser) {
+          const body = {};
+          if (formData.ho_ten) body.ho_ten = formData.ho_ten;
+          if (formData.email !== undefined) body.email = formData.email || null;
+          if (formData.mat_khau) body.mat_khau = formData.mat_khau;
+          if (formData.loai_tk) body.loai_tk = formData.loai_tk; // already DB string
+
+          await updateUser(editingUser.id, body);
+          await refreshApiUsers();
+          toast.success('Cập nhật người dùng thành công');
+        } else {
+          // create
+          if (!formData.ma_ca_nhan || !formData.ho_ten || !formData.loai_tk) {
+            toast.error('Vui lòng nhập đầy đủ thông tin: Mã cá nhân, Họ tên, Vai trò');
+            setLoading(false);
+            return;
+          }
+
+          const payload = {
+            ma_ca_nhan: formData.ma_ca_nhan,
+            ho_ten: formData.ho_ten,
+            mat_khau: formData.mat_khau && formData.mat_khau.trim() ? formData.mat_khau : formData.ma_ca_nhan,
+            loai_tk: formData.loai_tk, // DB string
+            email: formData.email || null
+          };
+
+          await createUser(payload);
+          await refreshApiUsers();
+          toast.success('Tạo người dùng thành công');
+        }
+      } else {
+        toast.error('Chỉ quản trị viên mới có thể quản lý người dùng');
+      }
+
+      setShowModal(false);
+      setEditingUser(null);
+      setFormData({ ma_ca_nhan: '', ho_ten: '', mat_khau: '', loai_tk: 'Sinh viên', email: '' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Có lỗi xảy ra!');
+    }
+
+    setLoading(false);
+  };
+
+  const handleEdit = (userItem) => {
+    setEditingUser(userItem);
+    setFormData({
+      ma_ca_nhan: userItem.ma_ca_nhan,
+      ho_ten: userItem.name,
+      mat_khau: '',
+      loai_tk: shortToDbRole(userItem.role),
+      email: userItem.email || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (userItem) => {
+    if (userItem.role === 'admin' && users.filter(u => u.role === 'admin').length <= 1) {
+      toast.error('Không thể xóa quản trị viên cuối cùng!');
+      return;
+    }
+
+    setConfirm({
+      isOpen: true,
+      title: 'Xóa người dùng',
+      message: 'Bạn có chắc chắn muốn xóa người dùng này? Đây là thao tác không thể hoàn tác.',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          if (user && user.role === 'admin') {
+            await deleteUser(userItem.id);
+            await refreshApiUsers();
+            toast.success('Đã xóa người dùng');
+          } else {
+            toast.error('Chỉ quản trị viên mới có thể xóa người dùng');
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error('Có lỗi xảy ra khi xóa người dùng!');
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      <ConfirmDialog
+        isOpen={confirm.isOpen}
+        title={confirm.title}
+        message={confirm.message}
+        confirmText={confirm.confirmText}
+        cancelText={confirm.cancelText}
+        onConfirm={confirm.onConfirm}
+        onCancel={() => setConfirm({ ...confirm, isOpen: false, onConfirm: null })}
+      />
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
+          Quản lý người dùng
+        </h1>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: config.accent_color }}
+          >
+            Thêm người dùng
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã cá nhân</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {users.slice((page - 1) * itemsPerPage, page * itemsPerPage).map((u, idx) => (
+                <tr key={u.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{(page - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{u.name}</div>
+                    <div className="text-sm text-gray-500">ID: {u.id}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.ma_ca_nhan}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">{roleOptions.find(r => r.value === u.role)?.label || u.role}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button onClick={() => handleEdit(u)} className="text-blue-600 hover:text-blue-900">Sửa</button>
+                    <button onClick={() => handleDelete(u)} className="text-red-600 hover:text-red-900">Xóa</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              Chưa có người dùng nào
+            </div>
+          )}
+          {/* Pagination controls */}
+          {users.length > itemsPerPage && (
+            <div className="flex items-center justify-center space-x-3 py-4">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+              {Array.from({ length: Math.ceil(users.length / itemsPerPage) }).map((_, idx) => (
+                <button key={idx} onClick={() => setPage(idx + 1)} className={`px-3 py-1 rounded ${page === idx + 1 ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>{idx + 1}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(Math.ceil(users.length / itemsPerPage), p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingUser(null);
+          setFormData({ ma_ca_nhan: '', ho_ten: '', mat_khau: '', loai_tk: 'Sinh viên', email: '' });
+        }}
+        title={editingUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
+        size="md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mã cá nhân *
+            </label>
+            <input
+              type="text"
+              required={!editingUser}
+              value={formData.ma_ca_nhan}
+              onChange={(e) => setFormData({ ...formData, ma_ca_nhan: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập mã cá nhân"
+              disabled={!!editingUser}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Họ và tên *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.ho_ten}
+              onChange={(e) => setFormData({ ...formData, ho_ten: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập họ tên"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {editingUser ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu *'}
+            </label>
+            <input
+              type="password"
+              required={!editingUser}
+              value={formData.mat_khau}
+              onChange={(e) => setFormData({ ...formData, mat_khau: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder={editingUser ? 'Nhập mật khẩu mới' : 'Nhập mật khẩu'}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vai trò *
+            </label>
+            <select
+              required
+              value={formData.loai_tk}
+              onChange={(e) => setFormData({ ...formData, loai_tk: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {roleOptions.map(role => (
+                <option key={role.value} value={role.value === 'admin' ? 'Admin' : (role.value === 'giangvien' ? 'Giảng viên' : 'Sinh viên')}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nhập email"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: config.accent_color }}
+            >
+              {loading ? 'Đang xử lý...' : (editingUser ? 'Cập nhật' : 'Thêm người dùng')}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

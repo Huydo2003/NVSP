@@ -14,21 +14,13 @@ import { defaultConfig } from './utils/config';
 import LoginForm from './components/LoginForm';
 import Navigation from './components/Navigation';
 import ChangePasswordModal from './components/ChangePasswordModal';
-import Dashboard from './components/Dashboard';
-import EventManagement from './components/EventManagement';
-import CompetitionManagement from './components/CompetitionManagement';
-import RegistrationManagement from './components/RegistrationManagement';
-import AttendanceManagement from './components/AttendanceManagement';
-import CertificateManagement from './components/CertificateManagement';
-import Reports from './components/Reports';
 import UserManagement from './components/UserManagement';
-import AccountTypeManagement from './components/AccountTypeManagement';
-import EventTypeManagement from './components/EventTypeManagement';
-import CertificateTypeManagement from './components/CertificateTypeManagement';
-import SupportTypeManagement from './components/SupportTypeManagement';
+import BcnKhoaManagement from './components/BcnKhoaManagement';
+import GiangVienManagement from './components/GiangVienManagement';
+import SinhVienManagement from './components/SinhVienManagement';
+import BanToChucManagement from './components/BanToChucManagement';
 import AccountPage from './components/AccountPage';
-import OrganizerManagement from './components/OrganizerManagement';
-import OrganizerLevelManagement from './components/OrganizerLevelManagement';
+import CanBoLopManagement from './components/CanBoLopManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -123,7 +115,7 @@ function App() {
         setCurrentUser(me);
         localStorage.setItem('nvsp_user', JSON.stringify(me));
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
     setShowChangePassword(false);
@@ -141,42 +133,25 @@ function App() {
     if (!currentUser) return null;
 
     switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard user={currentUser} />;
-      case 'events':
-        return <EventManagement user={currentUser} />;
-      case 'competitions':
-        return <CompetitionManagement user={currentUser} />;
-      case 'registrations':
-        return <RegistrationManagement user={currentUser} />;
-      case 'attendance':
-        return <AttendanceManagement user={currentUser} />;
-      case 'certificates':
-        return <CertificateManagement user={currentUser} />;
-      case 'reports':
-        return <Reports user={currentUser} />;
       case 'users':
         return <UserManagement user={currentUser} />;
-      case 'account_types':
-        return <AccountTypeManagement user={currentUser} />;
-      case 'event_types':
-        return <EventTypeManagement user={currentUser} />;
-      case 'certificate_types':
-        return <CertificateTypeManagement user={currentUser} />;
-      case 'support_types':
-        return <SupportTypeManagement user={currentUser} />;
-      case 'organizers':
-        return <OrganizerManagement user={currentUser} />;
-      case 'organizer_levels':
-        return <OrganizerLevelManagement user={currentUser} />;
+      case 'bcn_khoa':
+        return <BcnKhoaManagement />;
+      case 'giang_vien':
+        return <GiangVienManagement user={currentUser} />;
+      case 'sinh_vien':
+        return <SinhVienManagement user={currentUser} />;
+      case 'ban_to_chuc':
+        return <BanToChucManagement user={currentUser} />;
+      case 'can_bo_lop':
+        return <CanBoLopManagement />;
       case 'account':
         return <AccountPage user={currentUser} onUserUpdate={setCurrentUser} />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">
-      <div className="text-6xl mb-4"></div>
-            <p className="text-lg">Chức năng đang phát triển</p>
-            <p className="text-sm">Vui lòng quay lại sau!</p>
+                <p className="text-lg">Hệ Thống Quản Lý</p>
+            <p className="text-sm">Chọn một chức năng từ menu bên trái</p>
           </div>
         );
     }

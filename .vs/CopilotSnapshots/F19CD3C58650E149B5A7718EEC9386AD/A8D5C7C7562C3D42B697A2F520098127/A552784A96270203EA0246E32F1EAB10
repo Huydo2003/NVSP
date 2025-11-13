@@ -1,0 +1,43 @@
+﻿/**
+ * Modal.jsx - Cửa sổ modal
+ * 
+ * Chức năng:
+ * - Hiển thị form popup
+ * - Tùy chỉnh kích thước
+ * - Xử lý đóng/mở
+ */
+
+export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+  if (!isOpen) return null;
+
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-2xl',
+    lg: 'max-w-4xl',
+    xl: 'max-w-6xl'
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-full p-4">
+        <div className="modal-backdrop fixed inset-0" onClick={onClose}></div>
+        <div className={`bg-white rounded-lg shadow-xl relative w-full ${sizeClasses[size]} fade-in`}>
+          <div className="flex items-center justify-between p-6 border-b">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {title}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-6">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

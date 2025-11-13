@@ -9,73 +9,55 @@
  */
 
 import { useApp } from '../hooks/useApp';
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../services/api';
 
 export default function Navigation({ activeTab, setActiveTab, user, onLogout }) {
   const { state } = useApp();
   const { config } = state;
+  const [isBcn, setIsBcn] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user) { if (mounted) setIsBcn(false); return; }
+        const res = await apiFetch('/api/me/is_bcn');
+        if (mounted) setIsBcn(!!res?.isBcn);
+      } catch (err) {
+        if (mounted) setIsBcn(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user]);
 
   const getMenuItems = () => {
     const baseItems = [
-      { id: 'dashboard', label: 'Tổng quan' },
       { id: 'account', label: 'Tài khoản' }
     ];
 
-    switch (user.role) {
-      case 'admin':
-        return [
-          ...baseItems,
-          { id: 'events', label: 'Quản lý sự kiện' },
-          { id: 'competitions', label: 'Hoạt động dự thi' },
-          { id: 'support', label: 'Hoạt động hỗ trợ' },
-          { id: 'attendance', label: 'Hoạt động tham dự' },
-          { id: 'notifications', label: 'Thông báo' },
-          { id: 'results', label: 'Kết quả' },
-          { id: 'certificates', label: 'Chứng nhận' },
-          { id: 'reports', label: 'Báo cáo' },
-          { id: 'users', label: 'Quản lý người dùng' },
-          { id: 'voting', label: 'Bình chọn' },
-          // New type management entries
-          { id: 'account_types', label: 'Loại tài khoản' },
-          { id: 'event_types', label: 'Loại sự kiện' },
-          { id: 'certificate_types', label: 'Loại chứng nhận' },
-          { id: 'support_types', label: 'Loại hỗ trợ' },
-          { id: 'organizers', label: 'Ban tổ chức' },
-          { id: 'organizer_levels', label: 'Cấp ban tổ chức' }
-        ];
-      case 'btc':
-        return [
-          ...baseItems,
-          { id: 'events', label: 'Quản lý sự kiện' },
-          { id: 'competitions', label: 'Hoạt động dự thi' },
-          { id: 'registrations', label: 'Đăng ký & Xét duyệt' },
-          { id: 'attendance', label: 'Điểm danh' },
-          { id: 'results', label: 'Nhập kết quả' },
-          { id: 'certificates', label: 'Cấp chứng nhận' }
-        ];
-      case 'cbl':
-        return [
-          ...baseItems,
-          { id: 'registrations', label: 'Đăng ký sinh viên' },
-          { id: 'attendance', label: 'Điểm danh' },
-          { id: 'notifications', label: 'Thông báo' }
-        ];
-      case 'student':
-        return [
-          ...baseItems,
-          { id: 'register', label: 'Đăng ký tham gia' },
-          { id: 'schedule', label: 'Lịch thi' },
-          { id: 'attendance', label: 'Điểm danh' },
-          { id: 'certificates', label: 'Chứng nhận của tôi' }
-        ];
-      case 'judge':
-        return [
-          ...baseItems,
-          { id: 'judging', label: 'Chấm thi' },
-          { id: 'schedule', label: 'Lịch chấm thi' }
-        ];
-      default:
-        return baseItems;
+    const role = String(user.role || '').toLowerCase();
+
+    if (role === 'admin') {
+      return [
+        ...baseItems,
+        { id: 'users', label: 'Quản lý người dùng' },
+        { id: 'giang_vien', label: 'Quản lý giảng viên' },
+        { id: 'sinh_vien', label: 'Quản lý sinh viên' },
+        { id: 'bcn_khoa', label: 'Quản lý BCN Khoa' }
+      ];
     }
+
+    // Only show BTC/CBL menu for users who are Giảng viên AND active BCN
+    if ((role.includes('giang') || role.includes('giảng')) && isBcn) {
+      return [
+        ...baseItems,
+        { id: 'ban_to_chuc', label: 'Quản lý Ban tổ chức' },
+        { id: 'can_bo_lop', label: 'Quản lý Cán bộ lớp' }
+      ];
+    }
+
+    return baseItems;
   };
 
   return (
@@ -83,8 +65,8 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       <div className="mb-8">
         <h1 className="text-xl font-bold mb-2">{config.system_title}</h1>
         <div className="text-sm opacity-90">
-          <p>{user.username || user.name || 'Người dùng'}</p>
-          <p className="text-xs">{user.email}</p>
+          <p>{user?.username || user?.name || 'Người dùng'}</p>
+          <p className="text-xs">{user?.email}</p>
         </div>
       </div>
       

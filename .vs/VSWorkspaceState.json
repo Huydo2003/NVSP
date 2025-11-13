@@ -1,10 +1,10 @@
 {
   "ExpandedNodes": [
     "",
+    "\\server",
     "\\src",
     "\\src\\components",
     "\\src\\services"
   ],
-  "SelectedNode": "\\src\\services\\api.js",
   "PreviewInSolutionExplorer": false
 }

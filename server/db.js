@@ -6,7 +6,7 @@ const pool = mysql.createPool({
   port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'quanlysv',
+  database: process.env.DB_NAME || 'nvsp',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

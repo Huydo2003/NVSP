@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
  */
 
 export default function LoginForm({ onLogin }) {
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [credentials, setCredentials] = useState({ ma_ca_nhan: '', mat_khau: '' });
   const [loading, setLoading] = useState(false);
   const { state } = useApp();
   const { config } = state;
@@ -22,15 +22,17 @@ export default function LoginForm({ onLogin }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await apiLogin(credentials.username, credentials.password);
+      const res = await apiLogin(credentials.ma_ca_nhan, credentials.mat_khau);
       if (res && res.token && res.user) {
+        // Always pass the returned user to App; App will decide to show change-password modal
         onLogin(res.user);
       } else {
         toast.error(res && res.message ? res.message : 'Đăng nhập không thành công');
       }
     } catch (err) {
       console.error('Login error', err);
-      toast.error((err && err.body && err.body.message) ? err.body.message : 'Lỗi đăng nhập');
+      const msg = err && err.body && err.body.message ? err.body.message : (err && err.message ? err.message : 'Lỗi đăng nhập');
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -51,33 +53,33 @@ export default function LoginForm({ onLogin }) {
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="space-y-4">
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                  Tên đăng nhập
+                <label htmlFor="ma_ca_nhan" className="block text-sm font-medium text-gray-700">
+                  Mã cá nhân
                 </label>
                 <input
-                  id="username"
-                  name="username"
+                  id="ma_ca_nhan"
+                  name="ma_ca_nhan"
                   type="text"
                   required
                   className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Nhập tên đăng nhập"
-                  value={credentials.username}
-                  onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                  placeholder="Nhập mã cá nhân"
+                  value={credentials.ma_ca_nhan}
+                  onChange={(e) => setCredentials({...credentials, ma_ca_nhan: e.target.value})}
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="mat_khau" className="block text-sm font-medium text-gray-700">
                   Mật khẩu
                 </label>
                 <input
-                  id="password"
-                  name="password"
+                  id="mat_khau"
+                  name="mat_khau"
                   type="password"
                   required
                   className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Nhập mật khẩu"
-                  value={credentials.password}
-                  onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                  value={credentials.mat_khau}
+                  onChange={(e) => setCredentials({...credentials, mat_khau: e.target.value})}
                 />
               </div>
             </div>
@@ -90,10 +92,6 @@ export default function LoginForm({ onLogin }) {
               >
                 {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
-            </div>
-            <div className="mt-4 text-xs text-gray-500">
-              <p>Tài khoản demo:</p>
-              <p>admin/admin, btc/btc, cbl/cbl, student/student, judge/judge</p>
             </div>
           </div>
         </form>

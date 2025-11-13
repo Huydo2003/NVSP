@@ -1,15 +1,23 @@
 import { apiFetch } from './api';
 
+function mapRoleFromString(roleStr) {
+  if (!roleStr) return null;
+  const r = String(roleStr).toLowerCase();
+  if (r.includes('admin')) return 'admin';
+  if (r.includes('bantochuc') || r.includes('ban to chuc') || r.includes('ban tổ chức') || r.includes('btc')) return 'btc';
+  if (r.includes('canbo') || r.includes('can bo') || r.includes('cbl')) return 'cbl';
+  if (r.includes('sinh') || r.includes('sinh viên') || r.includes('sinh_vien')) return 'student';
+  if (r.includes('giamkhao') || r.includes('giám khảo') || r.includes('giam khao')) return 'judge';
+  if (r.includes('giang') || r.includes('giảng')) return 'giangvien';
+  return null;
+}
+
 function mapRoleFromNameOrId(roleName, roleId) {
+  // prefer string role (server now returns `role` or `loai_tk`)
   if (roleName) {
-    const rn = roleName.toLowerCase();
-    if (rn.includes('admin')) return 'admin';
-    if (rn.includes('bantochuc') || rn.includes('ban to chuc') || rn.includes('bantochuc')) return 'btc';
-    if (rn.includes('canbolop') || rn.includes('can bo lop')) return 'cbl';
-    if (rn.includes('sinhvien') || rn.includes('sinh viên')) return 'student';
-    if (rn.includes('giamkhao') || rn.includes('giám khảo') || rn.includes('giam khảo')) return 'judge';
+    const mapped = mapRoleFromString(roleName);
+    if (mapped) return mapped;
   }
-  // fallback by known ids from SQL dump
   if (roleId) {
     const id = Number(roleId);
     if (id === 1) return 'admin';
@@ -24,12 +32,20 @@ function mapRoleFromNameOrId(roleName, roleId) {
 function normalizeUser(u) {
   if (!u) return u;
   const user = Object.assign({}, u);
-  user.role = mapRoleFromNameOrId(user.roleName, user.roleId) || user.role || null;
+  // server may return different fields: role / loai_tk / roleName / roleId
+  const roleStr = user.role || user.loai_tk || user.roleName || null;
+  const roleId = user.roleId || user.loai_tk_id || null;
+  user.role = mapRoleFromNameOrId(roleStr, roleId) || user.role || null;
+  // unify common fields
+  if (user.ma_ca_nhan) user.username = user.ma_ca_nhan;
+  if (user.ho_ten) user.fullName = user.ho_ten;
+  // keep mustChangePassword if provided
+  if (user.mustChangePassword === undefined) user.mustChangePassword = false;
   return user;
 }
 
-export async function login(username, password) {
-  const body = { username, password };
+export async function login(ma_ca_nhan, mat_khau) {
+  const body = { ma_ca_nhan, mat_khau };
   const data = await apiFetch('/api/login', { method: 'POST', body: JSON.stringify(body) });
   if (data && data.token && data.user) {
     const nu = normalizeUser(data.user);

@@ -1,0 +1,103 @@
+﻿import { useState } from 'react';
+import { useApp } from '../hooks/useApp';
+import { login as apiLogin } from '../services/auth';
+import toast from 'react-hot-toast';
+
+/**
+ * LoginForm.jsx - Đăng nhập hệ thống
+ * 
+ * Chức năng:
+ * - Xác thực người dùng
+ * - Kiểm tra quyền truy cập
+ * - Quản lý phiên đăng nhập
+ */
+
+export default function LoginForm({ onLogin }) {
+  const [credentials, setCredentials] = useState({ ma_ca_nhan: '', mat_khau: '' });
+  const [loading, setLoading] = useState(false);
+  const { state } = useApp();
+  const { config } = state;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await apiLogin(credentials.ma_ca_nhan, credentials.mat_khau);
+      if (res && res.token && res.user) {
+        onLogin(res.user);
+      } else {
+        toast.error(res && res.message ? res.message : 'Đăng nhập không thành công');
+      }
+    } catch (err) {
+      console.error('Login error', err);
+      toast.error((err && err.body && err.body.message) ? err.body.message : 'Lỗi đăng nhập');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: config.background_color }}>
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold" style={{ color: config.text_color }}>
+            {config.system_title}
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Đăng nhập để truy cập hệ thống
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="ma_ca_nhan" className="block text-sm font-medium text-gray-700">
+                  Mã cá nhân
+                </label>
+                <input
+                  id="ma_ca_nhan"
+                  name="ma_ca_nhan"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Nhập mã cá nhân"
+                  value={credentials.ma_ca_nhan}
+                  onChange={(e) => setCredentials({...credentials, ma_ca_nhan: e.target.value})}
+                />
+              </div>
+              <div>
+                <label htmlFor="mat_khau" className="block text-sm font-medium text-gray-700">
+                  Mật khẩu
+                </label>
+                <input
+                  id="mat_khau"
+                  name="mat_khau"
+                  type="password"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Nhập mật khẩu"
+                  value={credentials.mat_khau}
+                  onChange={(e) => setCredentials({...credentials, mat_khau: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="mt-6">
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                style={{ backgroundColor: config.primary_color }}
+              >
+                {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              </button>
+            </div>
+            <div className="mt-4 text-xs text-gray-500">
+              <p>Tài khoản demo:</p>
+              <p>admin/admin, giangvien/giangvien, cbl/cbl, student/student, judge/judge</p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

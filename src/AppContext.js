@@ -3,8 +3,8 @@ import { createContext } from 'react';
 const AppContext = createContext({
   data: [],
   config: {
-    app_name: 'NVSP Manager',
-    app_description: 'Hệ thống quản lý hoạt động, sự kiện, tình nguyện sinh viên',
+    app_name: 'NVSP User Manager',
+    app_description: 'Hệ thống quản lý người dùng và phân quyền',
     text_color: '#1F2937',
     accent_color: '#4F46E5',
     background_color: '#F3F4F6',
@@ -32,8 +32,8 @@ export const AppActionTypes = {
 export const initialAppState = {
   data: [],
   config: {
-    app_name: 'NVSP Manager',
-    app_description: 'Hệ thống quản lý hoạt động, sự kiện, tình nguyện sinh viên',
+    app_name: 'NVSP User Manager',
+    app_description: 'Hệ thống quản lý người dùng và phân quyền',
     text_color: '#1F2937',
     accent_color: '#4F46E5', 
     background_color: '#F3F4F6',
