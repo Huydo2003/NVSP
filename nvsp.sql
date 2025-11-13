@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 13, 2025 at 02:50 PM
+-- Generation Time: Nov 13, 2025 at 04:19 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -51,6 +51,7 @@ CREATE TABLE `ban_to_chuc` (
 
 INSERT INTO `ban_to_chuc` (`ma_giang_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_thai`) VALUES
 ('GV001', '2024-09-01', '2026-09-01', 1),
+('GV0013', '2025-11-15', '2025-11-29', 1),
 ('GV002', '2024-01-01', '2025-12-31', 1),
 ('GV003', '2023-01-01', '2024-12-31', 1),
 ('GV004', '2024-12-31', '2026-12-30', 0),
@@ -79,7 +80,8 @@ INSERT INTO `bcn_khoa` (`ma_giang_vien`, `khoa`, `bat_dau_nk`, `ket_thuc_nk`, `t
 ('GV002', 'Khoa Tâm lý', '2024-09-01', '2028-09-01', 1),
 ('GV003', 'Khoa Ngoại ngữ', '2023-09-01', '2027-09-01', 1),
 ('GV004', 'Khoa Toán', '2024-09-01', '2028-09-01', 1),
-('GV005', 'Khoa Sinh học', '2023-09-01', '2027-09-01', 1);
+('GV005', 'Khoa Sinh học', '2023-09-01', '2027-09-01', 1),
+('GV006', 'Khoa mới', '2025-11-14', '2025-11-21', 1);
 
 -- --------------------------------------------------------
 
@@ -139,7 +141,7 @@ INSERT INTO `chi_tiet_rubric` (`id_rubric`, `tieu_chi`, `diem_toi_da`) VALUES
 (1, 'Kỹ năng giao tiếp', 3),
 (1, 'Nội dung trình bày', 5),
 (1, 'Trả lời câu hỏi', 2),
-(2, 'Cấu trúc bài viết', 3),
+(2, 'Cấu trúc bài viết', 2),
 (2, 'Ngữ pháp & từ vựng', 2),
 (2, 'Phân tích & lập luận', 5),
 (3, 'Chức năng hoạt động', 5),
@@ -162,7 +164,8 @@ INSERT INTO `chi_tiet_rubric` (`id_rubric`, `tieu_chi`, `diem_toi_da`) VALUES
 (9, 'Lập luận logic', 4),
 (10, 'Bố cục hồ sơ', 3),
 (10, 'Nội dung & minh chứng', 5),
-(10, 'Tính thẩm mỹ', 2);
+(10, 'Tính thẩm mỹ', 2),
+(12, 'Ngữ pháp & từ vựng', 5);
 
 -- --------------------------------------------------------
 
@@ -249,7 +252,7 @@ CREATE TABLE `ds_rubrics` (
 --
 
 INSERT INTO `ds_rubrics` (`id_rubric`, `ten_rubric`) VALUES
-(12, 'Đánh giá bài thực hành lab'),
+(12, 'Đánh giá bài thực hành lab1'),
 (2, 'Đánh giá bài viết học thuật'),
 (6, 'Đánh giá dự án nhóm'),
 (10, 'Đánh giá hồ sơ portfolio'),
@@ -449,7 +452,7 @@ INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `e
 (26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-13 01:45:33', '2025-11-13 01:45:33'),
 (43, 'SV005', 'Nguyễn Văn A', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
 (44, 'GV0012', 'Trần Thị B', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
-(45, 'GV0013', 'Phạm Văn D', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(45, 'GV0013', 'Phạm Văn D', '6082b2fd4baf21f38e38fb4a12721f35', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 14:50:35'),
 (46, 'SV001', 'Trùng Mã', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
 (47, 'ADMIN21', 'Quản Trị Viên', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin002@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
 (48, 'SV004', 'Nguyễn Văn G', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvg@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09');

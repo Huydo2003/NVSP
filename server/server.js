@@ -54,7 +54,10 @@ async function isUserBtc(ma_ca_nhan) {
   try {
     if (!ma_ca_nhan) return false;
     const [rows] = await pool.execute('SELECT ma_giang_vien, trang_thai FROM ban_to_chuc WHERE ma_giang_vien = ? LIMIT 1', [ma_ca_nhan]);
-    return (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
+    console.log('isUserBtc query for', ma_ca_nhan, '- rows:', rows);
+    const result = (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
+    console.log('isUserBtc result for', ma_ca_nhan, ':', result);
+    return result;
   } catch (err) {
     console.error('isUserBtc error', err);
     return false;
@@ -133,7 +136,9 @@ app.get('/api/me/is_bcn', auth, async (req, res) => {
 app.get('/api/me/is_btc', auth, async (req, res) => {
   try {
     const ma = req.user && req.user.ma_ca_nhan;
+    console.log('GET /api/me/is_btc - ma_ca_nhan:', ma, 'user:', req.user);
     const btc = await isUserBtc(ma);
+    console.log('isUserBtc result:', btc);
     res.json({ isBtc: !!btc });
   } catch (err) {
     console.error('GET /api/me/is_btc error', err);
@@ -1137,7 +1142,13 @@ app.delete('/api/can_bo_lop/:ma_sinh_vien', auth, async (req, res) => {
 
 // ===== DS_RUBrICS =====
 app.get('/api/ds_rubrics', auth, async (req, res) => {
-  try { 
+  try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xem Rubric' });
+    }
+    
     const [rows] = await pool.execute('SELECT id_rubric, ten_rubric FROM ds_rubrics ORDER BY ten_rubric ASC');
     res.json(rows || []);
   }
@@ -1149,6 +1160,12 @@ app.get('/api/ds_rubrics', auth, async (req, res) => {
 
 app.post('/api/ds_rubrics', auth, async (req, res) => {
   try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể tạo Rubric' });
+    }
+    
     const { ten_rubric } = req.body || {};
 
     // uniqueness check
@@ -1174,6 +1191,12 @@ app.post('/api/ds_rubrics', auth, async (req, res) => {
 
 app.put('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
   try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể sửa Rubric' });
+    }
+    
     const { id_rubric } = req.params;
     const { ten_rubric } = req.body || {};
     
@@ -1200,12 +1223,102 @@ app.put('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
 
 app.delete('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
   try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xóa Rubric' });
+    }
+    
     const { id_rubric } = req.params;
     await pool.execute('DELETE FROM ds_rubrics WHERE id_rubric = ?', [id_rubric]);
     res.json({ message: 'Đã xóa rubric' });
   }
   catch (err) {
     console.error('DELETE /api/ds_rubrics/:id_rubric error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// ===== CHI_TIET_RUBRIC CRUD =====
+app.get('/api/chi_tiet_rubric/:id_rubric', auth, async (req, res) => {
+  try {
+    const { id_rubric } = req.params;
+    const [rows] = await pool.execute('SELECT id_rubric, tieu_chi, diem_toi_da FROM chi_tiet_rubric WHERE id_rubric = ? ORDER BY tieu_chi ASC', [id_rubric]);
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET chi_tiet_rubric error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/chi_tiet_rubric', auth, async (req, res) => {
+  try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể tạo chi tiết Rubric' });
+    }
+    
+    const { id_rubric, tieu_chi, diem_toi_da } = req.body || {};
+    
+    if (!tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
+    
+    // Check duplicate tieu_chi
+    const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, tieu_chi]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Tiêu chí '${tieu_chi}' đã tồn tại trong Rubric này` });
+    }
+    
+    await pool.execute('INSERT INTO chi_tiet_rubric (id_rubric, tieu_chi, diem_toi_da) VALUES (?, ?, ?)', [id_rubric, tieu_chi, diem_toi_da || 0]);
+    res.status(201).json({ message: 'Đã thêm chi tiết Rubric' });
+  } catch (err) {
+    console.error('POST chi_tiet_rubric error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
+  try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể sửa chi tiết Rubric' });
+    }
+    
+    const { id_rubric, tieu_chi } = req.params;
+    const { tieu_chi: new_tieu_chi, diem_toi_da } = req.body || {};
+    
+    if (!new_tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
+    
+    // If tieu_chi changed, check duplicate
+    if (new_tieu_chi !== tieu_chi) {
+      const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, new_tieu_chi]);
+      if (exist && exist.length > 0) {
+        return res.status(400).json({ message: `Tiêu chí '${new_tieu_chi}' đã tồn tại` });
+      }
+    }
+    
+    await pool.execute('UPDATE chi_tiet_rubric SET tieu_chi = ?, diem_toi_da = ? WHERE id_rubric = ? AND tieu_chi = ?', [new_tieu_chi, diem_toi_da || 0, id_rubric, tieu_chi]);
+    res.json({ message: 'Đã cập nhật chi tiết Rubric' });
+  } catch (err) {
+    console.error('PUT chi_tiet_rubric error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
+  try {
+    // Check BTC or BCN (active)
+    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
+      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xóa chi tiết Rubric' });
+    }
+    
+    const { id_rubric, tieu_chi } = req.params;
+    await pool.execute('DELETE FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ?', [id_rubric, tieu_chi]);
+    res.json({ message: 'Đã xóa chi tiết Rubric' });
+  } catch (err) {
+    console.error('DELETE chi_tiet_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });

@@ -3,8 +3,20 @@
   "WorkspaceRootPath": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\rubrics.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\services\\rubrics.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\Navigation.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\Navigation.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\RubricManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\RubricManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     }
   ],
   "DocumentGroupContainers": [
@@ -39,6 +51,45 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "server.js",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js",
+              "RelativeDocumentMoniker": "server\\server.js",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js",
+              "RelativeToolTip": "server\\server.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAAAQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-11-13T14:25:47.247Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "RubricManagement.jsx",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\RubricManagement.jsx",
+              "RelativeDocumentMoniker": "src\\components\\RubricManagement.jsx",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\RubricManagement.jsx",
+              "RelativeToolTip": "src\\components\\RubricManagement.jsx",
+              "ViewState": "AgIAAGcBAAAAAAAAAEBVwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-11-13T14:19:20.47Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "rubrics.js",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\rubrics.js",
+              "RelativeDocumentMoniker": "src\\services\\rubrics.js",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\rubrics.js",
+              "RelativeToolTip": "src\\services\\rubrics.js",
+              "ViewState": "AgIAAAUAAAAAAAAAAAAjwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-11-13T14:18:19.567Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "Navigation.jsx",
               "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\Navigation.jsx",
               "RelativeDocumentMoniker": "src\\components\\Navigation.jsx",
