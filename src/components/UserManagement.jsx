@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../hooks/useApp';
 import Modal from './Modal';
+import ImportUsersModal from './ImportUsersModal';
 import { fetchUsers, createUser, updateUser, deleteUser } from '../services/users';
 import toast from 'react-hot-toast';
 import ConfirmDialog from './ConfirmDialog';
@@ -20,6 +21,7 @@ export default function UserManagement({ user }) {
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -244,6 +246,13 @@ export default function UserManagement({ user }) {
         </h1>
         <div className="flex items-center space-x-3">
           <button
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: '#10b981' }}
+          >
+            Import file +
+          </button>
+          <button
             onClick={() => setShowModal(true)}
             className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
             style={{ backgroundColor: config.accent_color }}
@@ -409,6 +418,12 @@ export default function UserManagement({ user }) {
           </div>
         </form>
       </Modal>
+
+      <ImportUsersModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={refreshApiUsers}
+      />
     </div>
   );
 }

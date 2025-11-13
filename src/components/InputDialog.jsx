@@ -3,14 +3,14 @@ import Modal from './Modal';
 
 export default function InputDialog({
   isOpen,
-  title = 'Nh?p th�ng tin',
+  title = 'Nhập thông tin',
   label = '',
   defaultValue = '',
   placeholder = '',
   onConfirm,
   onCancel,
-  confirmText = 'X�c nh?n',
-  cancelText = 'H?y',
+  confirmText = 'Xác nhận',
+  cancelText = 'Hủy',
   multiline = false
 }) {
   const [value, setValue] = useState(defaultValue || '');

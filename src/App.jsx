@@ -21,6 +21,7 @@ import SinhVienManagement from './components/SinhVienManagement';
 import BanToChucManagement from './components/BanToChucManagement';
 import AccountPage from './components/AccountPage';
 import CanBoLopManagement from './components/CanBoLopManagement';
+import RubricManagement from './components/RubricManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -147,6 +148,8 @@ function App() {
         return <CanBoLopManagement />;
       case 'account':
         return <AccountPage user={currentUser} onUserUpdate={setCurrentUser} />;
+      case 'ds_rubrics':
+        return <RubricManagement user={currentUser} />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">

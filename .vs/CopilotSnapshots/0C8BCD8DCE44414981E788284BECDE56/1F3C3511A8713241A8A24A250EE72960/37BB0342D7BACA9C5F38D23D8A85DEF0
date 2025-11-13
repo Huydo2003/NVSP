@@ -43,6 +43,18 @@ async function isUserBcn(ma_ca_nhan) {
   }
 }
 
+// Helper: check whether a given ma_ca_nhan is an active BTC (ban_to_chuc.trang_thai = 1)
+async function isUserBtc(ma_ca_nhan) {
+  try {
+    if (!ma_ca_nhan) return false;
+    const [rows] = await pool.execute('SELECT ma_giang_vien, trang_thai FROM ban_to_chuc WHERE ma_giang_vien = ? LIMIT 1', [ma_ca_nhan]);
+    return (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
+  } catch (err) {
+    console.error('isUserBtc error', err);
+    return false;
+  }
+}
+
 // Health
 app.get('/api/ping', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -108,6 +120,18 @@ app.get('/api/me/is_bcn', auth, async (req, res) => {
   } catch (err) {
     console.error('GET /api/me/is_bcn error', err);
     res.status(500).json({ isBcn: false });
+  }
+});
+
+// NEW: Check whether current user is BTC (active)
+app.get('/api/me/is_bcn', auth, async (req, res) => {
+  try {
+    const ma = req.user && req.user.ma_ca_nhan;
+    const btc = await isUserBtc(ma);
+    res.json({ isBtc: !!btc });
+  } catch (err) {
+    console.error('GET /api/me/is_btc error', err);
+    res.status(500).json({ isBtc: false });
   }
 });
 

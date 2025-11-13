@@ -3,6 +3,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const crypto = require('crypto');
+const multer = require('multer');
+const xlsx = require('xlsx');
 require('dotenv').config();
 
 const pool = require('./db');
@@ -11,6 +13,10 @@ const auth = require('./auth');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Multer configuration for file uploads (memory storage)
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -39,6 +45,18 @@ async function isUserBcn(ma_ca_nhan) {
     return (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
   } catch (err) {
     console.error('isUserBcn error', err);
+    return false;
+  }
+}
+
+// Helper: check whether a given ma_ca_nhan is an active ban_to_chuc (ban_to_chuc.trang_thai = 1)
+async function isUserBtc(ma_ca_nhan) {
+  try {
+    if (!ma_ca_nhan) return false;
+    const [rows] = await pool.execute('SELECT ma_giang_vien, trang_thai FROM ban_to_chuc WHERE ma_giang_vien = ? LIMIT 1', [ma_ca_nhan]);
+    return (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
+  } catch (err) {
+    console.error('isUserBtc error', err);
     return false;
   }
 }
@@ -108,6 +126,18 @@ app.get('/api/me/is_bcn', auth, async (req, res) => {
   } catch (err) {
     console.error('GET /api/me/is_bcn error', err);
     res.status(500).json({ isBcn: false });
+  }
+});
+
+// NEW: Check whether current user is btc (active)
+app.get('/api/me/is_btc', auth, async (req, res) => {
+  try {
+    const ma = req.user && req.user.ma_ca_nhan;
+    const btc = await isUserBtc(ma);
+    res.json({ isBtc: !!btc });
+  } catch (err) {
+    console.error('GET /api/me/is_btc error', err);
+    res.status(500).json({ isBtc: false });
   }
 });
 
@@ -284,6 +314,125 @@ app.delete('/api/users/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('DELETE /api/users/:id error:', err);
     res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Import users from Excel
+app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
+  try {
+    if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
+    
+    if (!req.file) return res.status(400).json({ message: 'Chưa chọn file' });
+    
+    // Parse Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return res.status(400).json({ message: 'File Excel không có sheet nào' });
+    
+    const sheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(sheet);
+    
+    if (!data || data.length === 0) return res.status(400).json({ message: 'File Excel không có dữ liệu' });
+    
+    // Validate and prepare rows
+    const results = {
+      success: [],
+      errors: []
+    };
+    
+    // Process each row
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2; // Excel row number (header is row 1)
+      
+      try {
+        // Extract and validate data
+        const ma_ca_nhan = String(row.ma_ca_nhan || '').trim();
+        const ho_ten = String(row.ho_ten || '').trim();
+        const loai_tk_input = String(row.loai_tk || '').trim();
+        const mat_khau_input = String(row.mat_khau || '').trim();
+        const email = String(row.email || '').trim() || null;
+        
+        if (!ma_ca_nhan) throw new Error('Mã cá nhân không được để trống');
+        if (!ho_ten) throw new Error('Họ tên không được để trống');
+        if (!loai_tk_input) throw new Error('Loại tài khoản không được để trống');
+        
+        const loai_tk = canonicalLoaiTk(loai_tk_input);
+        if (!loai_tk) throw new Error(`Loại tài khoản không hợp lệ: ${loai_tk_input}. Giá trị hợp lệ: Sinh viên, Giảng viên, Admin`);
+        
+        const mat_khau = mat_khau_input || ma_ca_nhan; // Default password to ma_ca_nhan if not provided
+        
+        // Check if user already exists
+        const [exist] = await pool.execute(
+          'SELECT id, ma_ca_nhan, email FROM tai_khoan WHERE ma_ca_nhan = ? OR (email IS NOT NULL AND email = ?) LIMIT 1',
+          [ma_ca_nhan, email]
+        );
+        
+        if (exist && exist.length > 0) {
+          const existing = exist[0];
+          if (existing.ma_ca_nhan === ma_ca_nhan) {
+            throw new Error(`Mã cá nhân '${ma_ca_nhan}' đã tồn tại`);
+          }
+          if (existing.email === email) {
+            throw new Error(`Email '${email}' đã tồn tại`);
+          }
+        }
+        
+        // Insert user
+        await pool.execute(
+          'INSERT INTO tai_khoan (ma_ca_nhan, ho_ten, mat_khau, loai_tk, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+          [ma_ca_nhan, ho_ten, md5(mat_khau), loai_tk, email]
+        );
+        
+        // Create corresponding record in sinh_vien or giang_vien table
+        if (loai_tk === 'Sinh viên') {
+          const lop = String(row.lop || '').trim() || null;
+          const nganh = String(row.nganh || '').trim() || null;
+          const nien_khoa = String(row.nien_khoa || '').trim() || null;
+          const khoa_sv = String(row.khoa || '').trim() || null;
+          await pool.execute(
+            'INSERT INTO sinh_vien (ma_sinh_vien, nien_khoa, lop, nganh, khoa) VALUES (?, ?, ?, ?, ?)',
+            [ma_ca_nhan, nien_khoa, lop, nganh, khoa_sv]
+          );
+        } else if (loai_tk === 'Giảng viên') {
+          const khoa = String(row.khoa || '').trim() || null;
+          
+          // Check if khoa already exists for another giang_vien
+          if (khoa) {
+            const [existingKhoa] = await pool.execute(
+              'SELECT ma_giang_vien FROM giang_vien WHERE khoa = ? LIMIT 1',
+              [khoa]
+            );
+            if (existingKhoa && existingKhoa.length > 0) {
+              throw new Error(`Khoa '${khoa}' đã được gán cho giảng viên khác`);
+            }
+          }
+          
+          await pool.execute(
+            'INSERT INTO giang_vien (ma_giang_vien, khoa) VALUES (?, ?)',
+            [ma_ca_nhan, khoa]
+          );
+        }
+        
+        results.success.push({
+          rowNum,
+          ma_ca_nhan,
+          ho_ten,
+          loai_tk,
+          message: 'Thêm thành công'
+        });
+      } catch (err) {
+        results.errors.push({
+          rowNum,
+          message: err.message || 'Có lỗi xảy ra'
+        });
+      }
+    }
+    
+    res.json(results);
+  } catch (err) {
+    console.error('POST /api/users/import error:', err);
+    res.status(500).json({ message: 'Lỗi server khi xử lý import' });
   }
 });
 
@@ -982,6 +1131,81 @@ app.delete('/api/can_bo_lop/:ma_sinh_vien', auth, async (req, res) => {
     res.json({ message: 'Đã xóa CBL' });
   } catch (err) {
     console.error('DELETE /api/can_bo_lop/:ma_sinh_vien error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// ===== DS_RUBrICS =====
+app.get('/api/ds_rubrics', auth, async (req, res) => {
+  try { 
+    const [rows] = await pool.execute('SELECT id_rubric, ten_rubric FROM ds_rubrics ORDER BY ten_rubric ASC');
+    res.json(rows || []);
+  }
+  catch (err) {
+    console.error('GET /api/ds_rubrics error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/ds_rubrics', auth, async (req, res) => {
+  try {
+    const { ten_rubric } = req.body || {};
+
+    // uniqueness check
+    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubrics WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
+
+    if (exist && exist.length > 0) {
+      const existing = exist[0];
+      // Kiểm tra trùng ten_rubric
+      if (existing.ten_rubric === ten_rubric) {
+        return res.status(400).json({ message: `Tên Rubric (${ten_rubric}) đã tồn tại` });
+      }
+    }
+    
+    if (!ten_rubric) return res.status(400).json({ message: 'Thiếu thông tin ten_rubric' });
+    await pool.execute('INSERT INTO ds_rubrics (ten_rubric) VALUES (?)', [ten_rubric]);
+    res.status(201).json({ message: 'Đã thêm rubric' });
+  }
+  catch (err) {
+    console.error('POST /api/ds_rubrics error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
+  try {
+    const { id_rubric } = req.params;
+    const { ten_rubric } = req.body || {};
+    
+    // uniqueness check
+    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubrics WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
+
+    if (exist && exist.length > 0) {
+      const existing = exist[0];
+      // Kiểm tra trùng ten_rubric
+      if (existing.ten_rubric === ten_rubric) {
+        return res.status(400).json({ message: `Tên Rubric (${ten_rubric}) đã tồn tại` });
+      }
+    }
+    
+    if (!ten_rubric) return res.status(400).json({ message: 'Thiếu thông tin ten_rubric' });
+    await pool.execute('UPDATE ds_rubrics SET ten_rubric = ? WHERE id_rubric = ?', [ten_rubric, id_rubric]);
+    res.json({ message: 'Đã cập nhật rubric' });
+  }
+  catch (err) {
+    console.error('PUT /api/ds_rubrics/:id_rubric error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
+  try {
+    const { id_rubric } = req.params;
+    await pool.execute('DELETE FROM ds_rubrics WHERE id_rubric = ?', [id_rubric]);
+    res.json({ message: 'Đã xóa rubric' });
+  }
+  catch (err) {
+    console.error('DELETE /api/ds_rubrics/:id_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });

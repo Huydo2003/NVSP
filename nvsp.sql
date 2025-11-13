@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 13, 2025 at 04:27 AM
+-- Generation Time: Nov 13, 2025 at 02:50 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -100,10 +100,8 @@ CREATE TABLE `can_bo_lop` (
 
 INSERT INTO `can_bo_lop` (`ma_sinh_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_thai`) VALUES
 ('SV10001', '2024-08-30', '2025-08-30', 1),
-('SV10002', '2024-08-31', '2025-08-31', 0),
 ('SV10003', '2024-09-01', '2025-09-01', 1),
-('SV10004', '2024-09-01', '2025-09-01', 1),
-('SV10005', '2026-01-01', '2026-12-01', 1);
+('SV10004', '2024-09-01', '2025-09-01', 1);
 
 -- --------------------------------------------------------
 
@@ -132,6 +130,39 @@ CREATE TABLE `chi_tiet_rubric` (
   `tieu_chi` varchar(50) NOT NULL COMMENT 'Tên tiêu chí',
   `diem_toi_da` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `chi_tiet_rubric`
+--
+
+INSERT INTO `chi_tiet_rubric` (`id_rubric`, `tieu_chi`, `diem_toi_da`) VALUES
+(1, 'Kỹ năng giao tiếp', 3),
+(1, 'Nội dung trình bày', 5),
+(1, 'Trả lời câu hỏi', 2),
+(2, 'Cấu trúc bài viết', 3),
+(2, 'Ngữ pháp & từ vựng', 2),
+(2, 'Phân tích & lập luận', 5),
+(3, 'Chức năng hoạt động', 5),
+(3, 'Giao diện người dùng', 3),
+(3, 'Tính sáng tạo', 2),
+(4, 'Hiệu quả kinh tế dự kiến', 3),
+(4, 'Mức độ đổi mới sáng tạo', 3),
+(4, 'Tính khả thi của ý tưởng', 4),
+(5, 'Kết luận & đề xuất', 3),
+(5, 'Phân tích dữ liệu', 3),
+(5, 'Phương pháp nghiên cứu', 4),
+(6, 'Chất lượng kết quả', 3),
+(6, 'Tiến độ & hoàn thành dự án', 4),
+(6, 'Đóng góp của từng thành viên', 3),
+(7, 'Khả năng giao tiếp & truyền cảm hứng', 3),
+(7, 'Khả năng lãnh đạo nhóm', 4),
+(7, 'Kỹ năng ra quyết định', 3),
+(9, 'Cách trình bày quan điểm', 3),
+(9, 'Khả năng phản biện câu hỏi', 3),
+(9, 'Lập luận logic', 4),
+(10, 'Bố cục hồ sơ', 3),
+(10, 'Nội dung & minh chứng', 5),
+(10, 'Tính thẩm mỹ', 2);
 
 -- --------------------------------------------------------
 
@@ -213,6 +244,22 @@ CREATE TABLE `ds_rubrics` (
   `ten_rubric` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `ds_rubrics`
+--
+
+INSERT INTO `ds_rubrics` (`id_rubric`, `ten_rubric`) VALUES
+(12, 'Đánh giá bài thực hành lab'),
+(2, 'Đánh giá bài viết học thuật'),
+(6, 'Đánh giá dự án nhóm'),
+(10, 'Đánh giá hồ sơ portfolio'),
+(9, 'Đánh giá kỹ năng phản biện'),
+(7, 'Đánh giá năng lực lãnh đạo'),
+(5, 'Đánh giá nghiên cứu khoa học'),
+(3, 'Đánh giá sản phẩm phần mềm'),
+(1, 'Đánh giá thuyết trình'),
+(4, 'Đánh giá ý tưởng khởi nghiệp');
+
 -- --------------------------------------------------------
 
 --
@@ -230,6 +277,8 @@ CREATE TABLE `giang_vien` (
 
 INSERT INTO `giang_vien` (`ma_giang_vien`, `khoa`) VALUES
 ('GV001', 'Khoa Sư phạm'),
+('GV0012', 'Khoa Y'),
+('GV0013', 'Khoa Xây dựng'),
 ('GV002', 'Khoa Tâm lý'),
 ('GV003', 'Khoa Ngoại ngữ'),
 ('GV004', 'Khoa Toán Hình'),
@@ -341,11 +390,13 @@ CREATE TABLE `sinh_vien` (
 --
 
 INSERT INTO `sinh_vien` (`ma_sinh_vien`, `nien_khoa`, `lop`, `nganh`, `khoa`) VALUES
+('SV001', '2021', 'K61', 'CNTT', 'CNTT'),
+('SV004', '2022', 'K62', 'Math', 'Math'),
+('SV005', '2021', 'K61', 'CNTT', 'CNTT'),
 ('SV10001', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Sư phạm'),
 ('SV10002', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Sư phạm'),
 ('SV10003', 'K55', 'K55B', 'Sư phạm Anh', 'Khoa Ngoại ngữ'),
-('SV10004', 'K55', 'K55C', 'Sư phạm Toán', 'Khoa Toán'),
-('SV10005', 'K56', 'CNTT01', 'Công nghệ thông tin', 'Công nghệ thông tin');
+('SV10004', 'K55', 'K55C', 'Sư phạm Toán', 'Khoa Toán');
 
 -- --------------------------------------------------------
 
@@ -383,7 +434,7 @@ CREATE TABLE `tai_khoan` (
 --
 
 INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `email`, `created_at`, `updated_at`) VALUES
-(1, 'ADM001', 'Nguyễn Văn Admin', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
+(1, 'ADM001', 'Nguyễn Văn Admin nè', '96e79218965eb72c92a549dd5a330112', 'Admin', 'adminne@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-13 08:04:11'),
 (2, 'GV001', 'Trần Thị Thu', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'thuttt@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
 (3, 'GV002', 'Lê Hoàng Anh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'anhlh@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
 (4, 'GV003', 'Phạm Minh Tú', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tupm@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
@@ -393,10 +444,15 @@ INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `e
 (8, 'SV10002', 'Hoàng Văn Nam', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'namhv.k54@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
 (9, 'SV10003', 'Nguyễn Thị Lan', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'lannt.k55@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
 (10, 'SV10004', 'Trần Anh Đức', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'ducta.k55@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(22, 'SV10005', 'Nguyễn Văn A', 'a3c997bb0a5a508155da6e2c6ce1752c', 'Sinh viên', 'nva@hnue.edu.vn', '2025-11-12 16:28:42', '2025-11-12 16:36:53'),
 (23, 'SV10006', 'Nguyễn Văn B', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvb@hnue.edu.vn', '2025-11-13 00:28:55', '2025-11-13 00:28:55'),
 (25, 'GV006', 'Lê Thị Thu Hoa', 'f951b7cfbe11e84ed53c134c10ac41f1', 'Giảng viên', 'lethithuhoa@hnue.edu.vn', '2025-11-13 01:02:31', '2025-11-13 02:44:31'),
-(26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-13 01:45:33', '2025-11-13 01:45:33');
+(26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-13 01:45:33', '2025-11-13 01:45:33'),
+(43, 'SV005', 'Nguyễn Văn A', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(44, 'GV0012', 'Trần Thị B', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(45, 'GV0013', 'Phạm Văn D', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(46, 'SV001', 'Trùng Mã', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(47, 'ADMIN21', 'Quản Trị Viên', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin002@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
+(48, 'SV004', 'Nguyễn Văn G', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvg@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09');
 
 -- --------------------------------------------------------
 
@@ -639,7 +695,7 @@ ALTER TABLE `diem_ren_luyen`
 -- AUTO_INCREMENT for table `ds_rubrics`
 --
 ALTER TABLE `ds_rubrics`
-  MODIFY `id_rubric` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_rubric` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `hoat_dong_ho_tro`
@@ -687,7 +743,7 @@ ALTER TABLE `su_kien`
 -- AUTO_INCREMENT for table `tai_khoan`
 --
 ALTER TABLE `tai_khoan`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- AUTO_INCREMENT for table `thong_tin_gcn`

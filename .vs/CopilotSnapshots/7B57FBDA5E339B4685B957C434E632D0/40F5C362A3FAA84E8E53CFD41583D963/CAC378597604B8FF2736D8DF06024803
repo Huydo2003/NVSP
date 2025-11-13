@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Navigation.jsx - Menu điều hướng
  * 
  * Chức năng:
@@ -53,34 +53,40 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
   }, [user]);
 
   const getMenuItems = () => {
-    const items = [
+    const baseItems = [
       { id: 'account', label: 'Tài khoản' }
     ];
 
     const role = String(user.role || '').toLowerCase();
 
     if (role === 'admin') {
-      // Admin sees all management sections
-      items.push({ id: 'users', label: 'Quản lý người dùng' });
-      items.push({ id: 'giang_vien', label: 'Quản lý giảng viên' });
-      items.push({ id: 'sinh_vien', label: 'Quản lý sinh viên' });
-      items.push({ id: 'bcn_khoa', label: 'Quản lý BCN Khoa' });
-      return items;
+      return [
+        ...baseItems,
+        { id: 'users', label: 'Quản lý người dùng' },
+        { id: 'giang_vien', label: 'Quản lý giảng viên' },
+        { id: 'sinh_vien', label: 'Quản lý sinh viên' },
+        { id: 'bcn_khoa', label: 'Quản lý BCN Khoa' }
+      ];
     }
 
-    // For lecturers, add items according to active roles.
-    if (role.includes('giang') || role.includes('giảng')) {
-      if (isBcn) {
-        items.push({ id: 'ban_to_chuc', label: 'Quản lý Ban tổ chức' });
-        items.push({ id: 'can_bo_lop', label: 'Quản lý Cán bộ lớp' });
-      }
-
-      if (isBtc) {
-        items.push({ id: 'ds_rubrics', label: 'Quản lý Rubric' });
-      }
+    // Only show BTC/CBL menu for users who are Giảng viên AND active BCN
+    if ((role.includes('giang') || role.includes('giảng')) && isBcn) {
+      return [
+        ...baseItems,
+        { id: 'ban_to_chuc', label: 'Quản lý Ban tổ chức' },
+        { id: 'can_bo_lop', label: 'Quản lý Cán bộ lớp' }
+      ];
     }
 
-    return items;
+    // Only show BTC/CBL menu for users who are Giảng viên AND active BCN
+    if ((role.includes('giang') || role.includes('giảng')) && isBtc) {
+      return [
+        ...baseItems,
+        { id: 'ds_rubrics', label: 'Quản lý Rubric' }
+      ];
+    }
+
+    return baseItems;
   };
 
   return (
