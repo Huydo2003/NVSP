@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { fetchRubric, createRubric, updateRubric, deleteRubric, fetchRubricDetails, createRubricDetail, updateRubricDetail, deleteRubricDetail } from '../services/rubrics';
+import { fetchRubric, createRubric, updateRubric, deleteRubric, fetchRubricDetails, createRubricDetail, updateRubricDetail, deleteRubricDetail } from '../services/rubric';
 import toast from 'react-hot-toast';
 import ConfirmDialog from './ConfirmDialog';
 import { useApp } from '../hooks/useApp';
@@ -8,6 +8,8 @@ import { apiFetch } from '../services/api';
 
 export default function RubricManagement() {
   const [list, setList] = useState([]);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ id_rubric: '', ten_rubric: '' });
@@ -29,22 +31,28 @@ export default function RubricManagement() {
     let mounted = true;
     (async () => {
       try {
+        console.log('[RubricManagement] Checking BTC status...');
         // Check if user is BTC
         const res = await apiFetch('/api/me/is_btc');
-        console.log('BTC check response:', res);
+        console.log('[RubricManagement] BTC check response:', res);
         if (mounted) {
-          setIsBtc(res?.isBtc || false);
-          console.log('Set isBtc to:', res?.isBtc || false);
+          const btcStatus = res?.isBtc || false;
+          setIsBtc(btcStatus);
+          console.log('[RubricManagement] Set isBtc to:', btcStatus);
           
-          if (res?.isBtc) {
-            const rubrics = await fetchRubric();
+          if (btcStatus) {
+            console.log('[RubricManagement] User is BTC, fetching rubric...');
+            const rubric = await fetchRubric();
             if (mounted) {
-              setList(rubrics || []);
+              setList(rubric || []);
+              console.log('[RubricManagement] Fetched', rubric?.length || 0, 'rubric');
             }
+          } else {
+            console.log('[RubricManagement] User is NOT BTC, no access');
           }
         }
       } catch (err) {
-        console.error('Check BTC error', err);
+        console.error('[RubricManagement] Check BTC error', err);
         if (mounted) {
           setIsBtc(false);
         }
@@ -246,7 +254,7 @@ export default function RubricManagement() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {list.map((it, idx) => (
+              {list.slice((page - 1) * itemsPerPage, page * itemsPerPage).map((it, idx) => (
                 <tr key={it.id_rubric} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{idx + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -262,6 +270,19 @@ export default function RubricManagement() {
               ))}
             </tbody>
           </table>
+          {list.length === 0 && (
+            <div className="text-center py-8 text-gray-500">Chưa có Rubric nào</div>
+          )}
+
+          {list.length > itemsPerPage && (
+            <div className="flex items-center justify-center space-x-3 py-4">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+              {Array.from({ length: Math.ceil(list.length / itemsPerPage) }).map((_, idx) => (
+                <button key={idx} onClick={() => setPage(idx + 1)} className={`px-3 py-1 rounded ${page === idx + 1 ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>{idx + 1}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(Math.ceil(list.length / itemsPerPage), p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+            </div>
+          )}
           </div>
         </div>
         </>

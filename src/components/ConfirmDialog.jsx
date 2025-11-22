@@ -2,12 +2,12 @@ import Modal from './Modal';
 
 export default function ConfirmDialog({
   isOpen,
-  title = 'X�c nh?n',
+  title = 'Xác nhận',
   message = '',
   onConfirm,
   onCancel,
-  confirmText = '??ng �',
-  cancelText = 'H?y'
+  confirmText = 'Đồng ý',
+  cancelText = 'Hủy'
 }) {
   if (!isOpen) return null;
 

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 13, 2025 at 04:19 PM
+-- Generation Time: Nov 22, 2025 at 04:04 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -28,9 +28,21 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `ban_giam_khao` (
-  `id_hd` int(11) NOT NULL COMMENT 'ID hoạt động thi, FK to hoat_dong_thi(id_hd)',
-  `ma_gv` varchar(50) NOT NULL COMMENT 'FK to giang_vien(ma_giang_vien)'
+  `id_hd` int(11) NOT NULL,
+  `ma_giang_vien` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `ban_giam_khao`
+--
+
+INSERT INTO `ban_giam_khao` (`id_hd`, `ma_giang_vien`) VALUES
+(1, 'GV001'),
+(1, 'GV0013'),
+(3, 'GV0013'),
+(3, 'GV007'),
+(4, 'GV004'),
+(4, 'GV006');
 
 -- --------------------------------------------------------
 
@@ -39,10 +51,10 @@ CREATE TABLE `ban_giam_khao` (
 --
 
 CREATE TABLE `ban_to_chuc` (
-  `ma_giang_vien` varchar(50) NOT NULL COMMENT 'PK, FK to giang_vien(ma_giang_vien)',
-  `bat_dau_nk` date NOT NULL COMMENT 'Thời gian bắt đầu nhiệm kì',
-  `ket_thuc_nk` date DEFAULT NULL COMMENT 'Thời gian kết thúc nhiệm kì',
-  `trang_thai` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Trạng thái đương nhiệm (TRUE) hoặc tiền nhiệm (FALSE)'
+  `ma_giang_vien` varchar(50) NOT NULL,
+  `bat_dau_nk` date NOT NULL,
+  `ket_thuc_nk` date NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -51,6 +63,7 @@ CREATE TABLE `ban_to_chuc` (
 
 INSERT INTO `ban_to_chuc` (`ma_giang_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_thai`) VALUES
 ('GV001', '2024-09-01', '2026-09-01', 1),
+('GV0012', '2025-11-22', '2025-11-30', 1),
 ('GV0013', '2025-11-15', '2025-11-29', 1),
 ('GV002', '2024-01-01', '2025-12-31', 1),
 ('GV003', '2023-01-01', '2024-12-31', 1),
@@ -64,11 +77,11 @@ INSERT INTO `ban_to_chuc` (`ma_giang_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_
 --
 
 CREATE TABLE `bcn_khoa` (
-  `ma_giang_vien` varchar(50) NOT NULL COMMENT 'PK, FK to giang_vien(ma_giang_vien)',
-  `khoa` varchar(255) NOT NULL,
-  `bat_dau_nk` date NOT NULL COMMENT 'Thời gian bắt đầu nhiệm kì',
-  `ket_thuc_nk` date DEFAULT NULL COMMENT 'Thời gian kết thúc nhiệm kì',
-  `trang_thai` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Trạng thái đương nhiệm (TRUE) hoặc tiền nhiệm (FALSE)'
+  `ma_giang_vien` varchar(50) NOT NULL,
+  `khoa` varchar(100) NOT NULL,
+  `bat_dau_nk` date NOT NULL,
+  `ket_thuc_nk` date NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -90,10 +103,10 @@ INSERT INTO `bcn_khoa` (`ma_giang_vien`, `khoa`, `bat_dau_nk`, `ket_thuc_nk`, `t
 --
 
 CREATE TABLE `can_bo_lop` (
-  `ma_sinh_vien` varchar(50) NOT NULL COMMENT 'PK, FK to sinh_vien(ma_sinh_vien)',
-  `bat_dau_nk` date NOT NULL COMMENT 'Thời gian bắt đầu nhiệm kì',
-  `ket_thuc_nk` date DEFAULT NULL COMMENT 'Thời gian kết thúc nhiệm kì',
-  `trang_thai` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Trạng thái đương nhiệm (TRUE) hoặc tiền nhiệm (FALSE)'
+  `ma_sinh_vien` varchar(50) NOT NULL,
+  `bat_dau_nk` date NOT NULL,
+  `ket_thuc_nk` date NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -113,12 +126,10 @@ INSERT INTO `can_bo_lop` (`ma_sinh_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_th
 
 CREATE TABLE `cham_diem` (
   `id` int(11) NOT NULL,
-  `id_hd_thi` int(11) NOT NULL COMMENT 'FK to hoat_dong_thi(id_hd)',
-  `loai_bai_thi` enum('Cá nhân','Nhóm') NOT NULL COMMENT 'Loại bài thi: Cá nhân/Nhóm',
-  `id_dang_ky` int(11) NOT NULL COMMENT 'Liên kết tới dang_ky_ca_nhan(id) hoặc dang_ky_nhom(id_nhom)',
-  `diem` decimal(4,2) DEFAULT NULL COMMENT 'Điểm tổng sau khi tính theo rubric',
-  `nhan_xet` text DEFAULT NULL,
-  `ma_bgk` varchar(50) NOT NULL COMMENT 'Mã BGK chấm điểm'
+  `id_dang_ky` int(11) NOT NULL,
+  `diem` decimal(2,2) NOT NULL,
+  `nhan_xet` text NOT NULL,
+  `ma_bgk` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -128,9 +139,9 @@ CREATE TABLE `cham_diem` (
 --
 
 CREATE TABLE `chi_tiet_rubric` (
-  `id_rubric` int(11) NOT NULL COMMENT 'FK to ds_rubrics(id_rubric)',
-  `tieu_chi` varchar(50) NOT NULL COMMENT 'Tên tiêu chí',
-  `diem_toi_da` int(11) NOT NULL
+  `id_rubric` int(11) NOT NULL,
+  `tieu_chi` varchar(50) NOT NULL,
+  `diem_toi_da` decimal(5,2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -138,72 +149,49 @@ CREATE TABLE `chi_tiet_rubric` (
 --
 
 INSERT INTO `chi_tiet_rubric` (`id_rubric`, `tieu_chi`, `diem_toi_da`) VALUES
-(1, 'Kỹ năng giao tiếp', 3),
-(1, 'Nội dung trình bày', 5),
-(1, 'Trả lời câu hỏi', 2),
-(2, 'Cấu trúc bài viết', 2),
-(2, 'Ngữ pháp & từ vựng', 2),
-(2, 'Phân tích & lập luận', 5),
-(3, 'Chức năng hoạt động', 5),
-(3, 'Giao diện người dùng', 3),
-(3, 'Tính sáng tạo', 2),
-(4, 'Hiệu quả kinh tế dự kiến', 3),
-(4, 'Mức độ đổi mới sáng tạo', 3),
-(4, 'Tính khả thi của ý tưởng', 4),
-(5, 'Kết luận & đề xuất', 3),
-(5, 'Phân tích dữ liệu', 3),
-(5, 'Phương pháp nghiên cứu', 4),
-(6, 'Chất lượng kết quả', 3),
-(6, 'Tiến độ & hoàn thành dự án', 4),
-(6, 'Đóng góp của từng thành viên', 3),
-(7, 'Khả năng giao tiếp & truyền cảm hứng', 3),
-(7, 'Khả năng lãnh đạo nhóm', 4),
-(7, 'Kỹ năng ra quyết định', 3),
-(9, 'Cách trình bày quan điểm', 3),
-(9, 'Khả năng phản biện câu hỏi', 3),
-(9, 'Lập luận logic', 4),
-(10, 'Bố cục hồ sơ', 3),
-(10, 'Nội dung & minh chứng', 5),
-(10, 'Tính thẩm mỹ', 2),
-(12, 'Ngữ pháp & từ vựng', 5);
+(1, 'Kỹ năng giao tiếp', 3.00),
+(1, 'Nội dung trình bày', 5.00),
+(1, 'Trả lời câu hỏi', 2.00),
+(2, 'Cấu trúc bài viết', 2.00),
+(2, 'Ngữ pháp & từ vựng', 2.00),
+(2, 'Phân tích & lập luận', 5.00),
+(3, 'Chức năng hoạt động', 5.00),
+(3, 'Giao diện người dùng', 3.00),
+(3, 'Tính sáng tạo', 2.00),
+(4, 'Hiệu quả kinh tế dự kiến', 3.00),
+(4, 'Mức độ đổi mới sáng tạo', 3.00),
+(4, 'Tính khả thi của ý tưởng', 4.00),
+(5, 'Kết luận & đề xuất', 3.00),
+(5, 'Phân tích dữ liệu', 3.00),
+(5, 'Phương pháp nghiên cứu', 4.00),
+(6, 'Chất lượng kết quả', 3.00),
+(6, 'Tiến độ & hoàn thành dự án', 4.00),
+(6, 'Đóng góp của từng thành viên', 3.00),
+(7, 'Khả năng giao tiếp & truyền cảm hứng', 3.00),
+(7, 'Khả năng lãnh đạo nhóm', 4.00),
+(7, 'Kỹ năng ra quyết định', 3.00),
+(9, 'Cách trình bày quan điểm', 3.00),
+(9, 'Khả năng phản biện câu hỏi', 3.00),
+(9, 'Lập luận logic', 4.00),
+(10, 'Bố cục hồ sơ', 3.00),
+(10, 'Nội dung & minh chứng', 5.00),
+(10, 'Tính thẩm mỹ', 2.00),
+(12, 'Ngữ pháp & từ vựng', 4.50);
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `dang_ky_ca_nhan`
+-- Table structure for table `dang_ky_thi`
 --
 
-CREATE TABLE `dang_ky_ca_nhan` (
+CREATE TABLE `dang_ky_thi` (
   `id` int(11) NOT NULL,
-  `id_hd` int(11) NOT NULL COMMENT 'ID của hoạt động thi, FK to hoat_dong_thi(id_hd)',
-  `ma_sv` varchar(50) NOT NULL COMMENT 'FK to sinh_vien(ma_sinh_vien)',
-  `trang_thai` tinyint(4) DEFAULT 0 COMMENT '1 = Đã duyệt, 0 = Chưa duyệt, -1 = Từ chối'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `dang_ky_nhom`
---
-
-CREATE TABLE `dang_ky_nhom` (
-  `id_nhom` int(11) NOT NULL,
-  `ten_nhom` varchar(255) NOT NULL,
-  `ma_tham_gia` int(11) NOT NULL COMMENT 'Mã được sinh tự động khi tạo nhóm',
-  `id_hd` int(11) NOT NULL COMMENT 'ID của hoạt động thi, FK to hoat_dong_thi(id_hd)',
-  `trang_thai` tinyint(4) DEFAULT 0 COMMENT '1 = Đã duyệt, 0 = Chưa duyệt, -1 = Từ chối'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `dang_ky_tham_du`
---
-
-CREATE TABLE `dang_ky_tham_du` (
-  `ma_sv` varchar(50) NOT NULL COMMENT 'FK to sinh_vien(ma_sinh_vien)',
-  `id_hd` int(11) NOT NULL COMMENT 'ID hoạt động tham dự, FK to hoat_dong_tham_du(id_hd_tham_du)',
-  `trang_thai` tinyint(4) DEFAULT 0 COMMENT '1 = Đã duyệt, 0 = Chưa duyệt, -1 = Từ chối'
+  `id_hd` int(11) NOT NULL,
+  `hinh_thuc` enum('Cá nhân','Nhóm') NOT NULL,
+  `ma_sv` varchar(50) DEFAULT NULL,
+  `ten_nhom` varchar(50) DEFAULT NULL,
+  `ma_tham_gia` int(11) DEFAULT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -214,11 +202,11 @@ CREATE TABLE `dang_ky_tham_du` (
 
 CREATE TABLE `diem_danh` (
   `id` int(11) NOT NULL,
-  `ma_sv` varchar(50) NOT NULL COMMENT 'Sinh viên điểm danh, FK to sinh_vien(ma_sinh_vien)',
-  `id_hd` int(11) NOT NULL COMMENT 'Hoạt động tham dự/cổ vũ, FK to hoat_dong_tham_du(id_hd_tham_du)',
-  `anh_minh_chung` longblob DEFAULT NULL COMMENT 'Ảnh minh chứng điểm danh',
-  `thoi_gian` datetime DEFAULT current_timestamp() COMMENT 'Thời gian mà sinh viên điểm danh',
-  `trang_thai` tinyint(4) DEFAULT 0 COMMENT '1 = Đã duyệt, 0 = Chưa duyệt, -1 = Từ chối'
+  `thoi_gian` datetime NOT NULL,
+  `ma_sv` varchar(50) NOT NULL,
+  `id_hd` int(11) NOT NULL,
+  `anh_minh_chung` longblob NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -229,39 +217,52 @@ CREATE TABLE `diem_danh` (
 
 CREATE TABLE `diem_ren_luyen` (
   `id` int(11) NOT NULL,
-  `ma_sv` varchar(50) NOT NULL COMMENT 'FK to sinh_vien(ma_sinh_vien)',
+  `ma_sv` varchar(50) NOT NULL,
   `diem` int(11) NOT NULL,
-  `xep_loai` varchar(20) DEFAULT NULL,
+  `xep_loai` varchar(15) NOT NULL,
   `ky_hoc` varchar(10) NOT NULL,
-  `nam_hoc` varchar(10) NOT NULL
+  `nam_hoc` varchar(15) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `ds_rubrics`
+-- Table structure for table `dki_tham_du`
 --
 
-CREATE TABLE `ds_rubrics` (
+CREATE TABLE `dki_tham_du` (
+  `ma_sv` varchar(50) NOT NULL,
+  `id_hd` int(11) NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ds_rubric`
+--
+
+CREATE TABLE `ds_rubric` (
   `id_rubric` int(11) NOT NULL,
   `ten_rubric` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `ds_rubrics`
+-- Dumping data for table `ds_rubric`
 --
 
-INSERT INTO `ds_rubrics` (`id_rubric`, `ten_rubric`) VALUES
-(12, 'Đánh giá bài thực hành lab1'),
-(2, 'Đánh giá bài viết học thuật'),
-(6, 'Đánh giá dự án nhóm'),
-(10, 'Đánh giá hồ sơ portfolio'),
-(9, 'Đánh giá kỹ năng phản biện'),
-(7, 'Đánh giá năng lực lãnh đạo'),
-(5, 'Đánh giá nghiên cứu khoa học'),
-(3, 'Đánh giá sản phẩm phần mềm'),
+INSERT INTO `ds_rubric` (`id_rubric`, `ten_rubric`) VALUES
 (1, 'Đánh giá thuyết trình'),
-(4, 'Đánh giá ý tưởng khởi nghiệp');
+(2, 'Đánh giá bài viết học thuật'),
+(3, 'Đánh giá sản phẩm phần mềm'),
+(4, 'Đánh giá ý tưởng khởi nghiệp'),
+(5, 'Đánh giá nghiên cứu khoa học'),
+(6, 'Đánh giá dự án nhóm'),
+(7, 'Đánh giá năng lực lãnh đạo'),
+(9, 'Đánh giá kỹ năng phản biện'),
+(10, 'Đánh giá hồ sơ portfolio'),
+(12, 'Đánh giá bài thực hành lab1'),
+(13, 'Đánh giá bài viết học thuật2');
 
 -- --------------------------------------------------------
 
@@ -270,8 +271,8 @@ INSERT INTO `ds_rubrics` (`id_rubric`, `ten_rubric`) VALUES
 --
 
 CREATE TABLE `giang_vien` (
-  `ma_giang_vien` varchar(50) NOT NULL COMMENT 'PK, FK to tai_khoan(ma_ca_nhan)',
-  `khoa` varchar(255) NOT NULL
+  `ma_giang_vien` varchar(50) NOT NULL,
+  `khoa` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -292,18 +293,41 @@ INSERT INTO `giang_vien` (`ma_giang_vien`, `khoa`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `hoat_dong`
+--
+
+CREATE TABLE `hoat_dong` (
+  `id_hd` int(11) NOT NULL,
+  `ten_hd` varchar(255) NOT NULL,
+  `loai_hd` enum('Thi','Tọa đàm') NOT NULL,
+  `tg_bat_dau` datetime NOT NULL,
+  `tg_ket_thuc` datetime NOT NULL,
+  `dia_diem` varchar(50) NOT NULL,
+  `id_sk` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `hoat_dong`
+--
+
+INSERT INTO `hoat_dong` (`id_hd`, `ten_hd`, `loai_hd`, `tg_bat_dau`, `tg_ket_thuc`, `dia_diem`, `id_sk`) VALUES
+(1, 'Lao động', 'Thi', '2025-11-22 03:00:00', '2025-11-21 17:00:00', 'Sân sau khu E', 23),
+(2, 'Tiếp sức mùa Thi', 'Tọa đàm', '2025-11-26 22:37:00', '2025-11-28 10:36:00', 'THPT XYZ', 24),
+(3, 'Hội khỏe phù đổng', 'Thi', '2025-11-15 21:53:00', '2025-11-21 21:53:00', 'Sân Thể Dục', 23),
+(4, 'Cắm trại', 'Thi', '2025-12-01 21:59:00', '2025-12-06 22:00:00', 'Khuôn viên trường', 28);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `hoat_dong_ho_tro`
 --
 
 CREATE TABLE `hoat_dong_ho_tro` (
   `id_hd_ho_tro` int(11) NOT NULL,
   `ten_hd` varchar(255) NOT NULL,
-  `loai_ho_tro` enum('Tập huấn','Phổ biến','Hướng dẫn hồ sơ') NOT NULL COMMENT 'Loại hđ hỗ trợ',
-  `tg_bat_dau` date NOT NULL,
-  `tg_ket_thuc` date NOT NULL,
-  `dia_diem` varchar(50) DEFAULT NULL,
-  `id_hd` int(11) NOT NULL COMMENT 'Hoạt động thi cần hỗ trợ, FK to hoat_dong_thi(id_hd)',
-  `ma_gv` varchar(50) NOT NULL COMMENT 'Giảng viên phụ trách hoạt động hỗ trợ, FK to giang_vien(ma_giang_vien)'
+  `loai_ho_tro` enum('Tập huấn','Phổ biến','Hướng dẫn hồ sơ') NOT NULL,
+  `id_hd` int(11) NOT NULL,
+  `ma_gv` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -315,7 +339,7 @@ CREATE TABLE `hoat_dong_ho_tro` (
 CREATE TABLE `hoat_dong_tham_du` (
   `id_hd_tham_du` int(11) NOT NULL,
   `ten_hd` varchar(255) NOT NULL,
-  `id_hd` int(11) DEFAULT NULL COMMENT 'ID hoạt động thi sẽ tham gia cổ vũ, FK to hoat_dong_thi(id_hd)'
+  `id_hd` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -326,14 +350,20 @@ CREATE TABLE `hoat_dong_tham_du` (
 
 CREATE TABLE `hoat_dong_thi` (
   `id_hd` int(11) NOT NULL,
-  `ten_hd` varchar(255) NOT NULL,
-  `id_rubric` int(11) DEFAULT NULL COMMENT 'FK to ds_rubrics(id_rubric)',
-  `hinh_thuc` enum('Cá nhân','Nhóm') NOT NULL COMMENT 'Hình thức: Cá nhân/Nhóm',
-  `tg_bat_dau` date NOT NULL,
-  `tg_ket_thuc` date NOT NULL,
-  `dia_diem` varchar(50) DEFAULT NULL,
-  `id_sk` int(11) NOT NULL COMMENT 'FK to su_kien(id_sk)'
+  `id_rubric` int(11) NOT NULL,
+  `hinh_thuc` enum('Cá nhân','Nhóm') NOT NULL,
+  `so_luong_tv` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `hoat_dong_thi`
+--
+
+INSERT INTO `hoat_dong_thi` (`id_hd`, `id_rubric`, `hinh_thuc`, `so_luong_tv`) VALUES
+(1, 12, 'Nhóm', 2),
+(2, 6, 'Nhóm', 8),
+(3, 6, 'Nhóm', 6),
+(4, 12, 'Nhóm', 7);
 
 -- --------------------------------------------------------
 
@@ -342,10 +372,9 @@ CREATE TABLE `hoat_dong_thi` (
 --
 
 CREATE TABLE `ket_qua` (
-  `id` int(11) NOT NULL,
-  `id_cham_diem` int(11) NOT NULL COMMENT 'FK to cham_diem(id)',
+  `id_dang_ky` int(11) NOT NULL,
   `giai_thuong` varchar(50) NOT NULL,
-  `trang_thai` tinyint(4) DEFAULT 0 COMMENT '1 = Đã duyệt, 0 = Chưa duyệt, -1 = Từ chối'
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -355,23 +384,10 @@ CREATE TABLE `ket_qua` (
 --
 
 CREATE TABLE `log_gcn` (
-  `id` int(11) NOT NULL,
-  `id_gcn` int(11) NOT NULL COMMENT 'FK to thong_tin_gcn(id)',
-  `hanh_dong` text NOT NULL COMMENT 'Lưu lại hành động: "Phát hành" hay "Thu hồi"',
-  `thoi_gian` datetime DEFAULT current_timestamp(),
-  `ma_btc` varchar(50) NOT NULL COMMENT 'Mã BTC thực hiện'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `log_tra_cuu`
---
-
-CREATE TABLE `log_tra_cuu` (
-  `id` int(11) NOT NULL,
-  `id_gcn` int(11) NOT NULL COMMENT 'FK to thong_tin_gcn(id)',
-  `tg_tra_cuu` datetime DEFAULT current_timestamp() COMMENT 'Thời gian người dùng tra cứu'
+  `id_gcn` int(11) NOT NULL,
+  `hanh_dong` text NOT NULL,
+  `thoi_gian` datetime NOT NULL,
+  `ma_btc` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -381,11 +397,11 @@ CREATE TABLE `log_tra_cuu` (
 --
 
 CREATE TABLE `sinh_vien` (
-  `ma_sinh_vien` varchar(50) NOT NULL COMMENT 'PK, FK to tai_khoan(ma_ca_nhan)',
-  `nien_khoa` varchar(10) DEFAULT NULL COMMENT 'Niên khóa',
-  `lop` varchar(10) DEFAULT NULL,
-  `nganh` varchar(255) NOT NULL COMMENT 'Ngành học',
-  `khoa` varchar(255) NOT NULL
+  `ma_sinh_vien` varchar(50) NOT NULL,
+  `nien_khoa` varchar(10) NOT NULL,
+  `lop` varchar(10) NOT NULL,
+  `nganh` varchar(100) NOT NULL,
+  `khoa` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -411,9 +427,20 @@ CREATE TABLE `su_kien` (
   `id_sk` int(11) NOT NULL,
   `ten_sk` varchar(255) NOT NULL,
   `nam_hoc` year(4) NOT NULL,
-  `ma_btc` varchar(50) NOT NULL COMMENT 'Mã của BTC tạo sự kiện',
-  `trang_thai` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'TRUE = Mở đăng ký, FALSE = Đóng đăng ký'
+  `ma_btc` varchar(50) NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `su_kien`
+--
+
+INSERT INTO `su_kien` (`id_sk`, `ten_sk`, `nam_hoc`, `ma_btc`, `trang_thai`) VALUES
+(23, 'Hoạt động mùa hè', '2025', 'GV0013', 0),
+(24, 'Tình nguyện mùa thi THPT', '2025', 'GV0013', 1),
+(25, 'Tình nguyện mùa thi THPT', '2024', 'GV0013', 1),
+(26, 'Tình nguyện mùa thi THPT', '2023', 'GV0013', 1),
+(28, 'Hội Thao Xuân 2025', '2025', 'GV0013', 1);
 
 -- --------------------------------------------------------
 
@@ -423,13 +450,13 @@ CREATE TABLE `su_kien` (
 
 CREATE TABLE `tai_khoan` (
   `id` int(11) NOT NULL,
-  `ma_ca_nhan` varchar(50) NOT NULL COMMENT 'Mã sinh viên/giảng viên/admin. Dùng để đăng nhập và liên kết tới bảng sinh_vien, giang_vien',
+  `ma_ca_nhan` varchar(50) NOT NULL,
   `ho_ten` varchar(50) NOT NULL,
-  `mat_khau` varchar(255) NOT NULL COMMENT 'Mật khẩu mã hóa',
-  `loai_tk` enum('Sinh viên','Giảng viên','Admin') NOT NULL COMMENT 'Loại tài khoản: Sinh viên, Giảng viên, Admin',
-  `email` varchar(255) DEFAULT NULL,
+  `mat_khau` varchar(50) NOT NULL,
+  `loai_tk` enum('Admin','Sinh viên','Giảng viên') NOT NULL,
+  `email` varchar(255) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -437,25 +464,25 @@ CREATE TABLE `tai_khoan` (
 --
 
 INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `email`, `created_at`, `updated_at`) VALUES
-(1, 'ADM001', 'Nguyễn Văn Admin nè', '96e79218965eb72c92a549dd5a330112', 'Admin', 'adminne@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-13 08:04:11'),
-(2, 'GV001', 'Trần Thị Thu', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'thuttt@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(3, 'GV002', 'Lê Hoàng Anh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'anhlh@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(4, 'GV003', 'Phạm Minh Tú', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tupm@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(5, 'GV004', 'Đặng Kim Ngân', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'nganABdk@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 16:22:49'),
-(6, 'GV005', 'Huỳnh Quang Hải', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'haihq@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(7, 'SV10001', 'Đỗ Thị Mai', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'maidt.k54@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(8, 'SV10002', 'Hoàng Văn Nam', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'namhv.k54@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(9, 'SV10003', 'Nguyễn Thị Lan', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'lannt.k55@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(10, 'SV10004', 'Trần Anh Đức', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'ducta.k55@hnue.edu.vn', '2025-11-12 13:22:17', '2025-11-12 13:43:36'),
-(23, 'SV10006', 'Nguyễn Văn B', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvb@hnue.edu.vn', '2025-11-13 00:28:55', '2025-11-13 00:28:55'),
-(25, 'GV006', 'Lê Thị Thu Hoa', 'f951b7cfbe11e84ed53c134c10ac41f1', 'Giảng viên', 'lethithuhoa@hnue.edu.vn', '2025-11-13 01:02:31', '2025-11-13 02:44:31'),
-(26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-13 01:45:33', '2025-11-13 01:45:33'),
-(43, 'SV005', 'Nguyễn Văn A', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
-(44, 'GV0012', 'Trần Thị B', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
-(45, 'GV0013', 'Phạm Văn D', '6082b2fd4baf21f38e38fb4a12721f35', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 14:50:35'),
-(46, 'SV001', 'Trùng Mã', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
-(47, 'ADMIN21', 'Quản Trị Viên', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin002@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09'),
-(48, 'SV004', 'Nguyễn Văn G', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvg@hnue.edu.vn', '2025-11-13 09:11:09', '2025-11-13 09:11:09');
+(1, 'ADM001', 'Nguyễn Văn Admin nè', '96e79218965eb72c92a549dd5a330112', 'Admin', 'adminne@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-13 01:04:11'),
+(2, 'GV001', 'Trần Thị Thu', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'thuttt@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(3, 'GV002', 'Lê Hoàng Anh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'anhlh@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(4, 'GV003', 'Phạm Minh Tú', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tupm@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(5, 'GV004', 'Đặng Kim Ngân', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'nganABdk@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 09:22:49'),
+(6, 'GV005', 'Huỳnh Quang Hải', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'haihq@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(7, 'SV10001', 'Đỗ Thị Mai', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'maidt.k54@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(8, 'SV10002', 'Hoàng Văn Nam', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'namhv.k54@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(9, 'SV10003', 'Nguyễn Thị Lan', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'lannt.k55@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(10, 'SV10004', 'Trần Anh Đức', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'ducta.k55@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
+(23, 'SV10006', 'Nguyễn Văn B', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvb@hnue.edu.vn', '2025-11-12 17:28:55', '2025-11-12 17:28:55'),
+(25, 'GV006', 'Lê Thị Thu Hoa', 'f951b7cfbe11e84ed53c134c10ac41f1', 'Giảng viên', 'lethithuhoa@hnue.edu.vn', '2025-11-12 18:02:31', '2025-11-12 19:44:31'),
+(26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-12 18:45:33', '2025-11-12 18:45:33'),
+(43, 'SV005', 'Nguyễn Văn A', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
+(44, 'GV0012', 'Trần Thị B', 'df030274605ce6de120181c4410ea67b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-15 03:49:44'),
+(45, 'GV0013', 'Phạm Văn D', '6082b2fd4baf21f38e38fb4a12721f35', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 07:50:35'),
+(46, 'SV001', 'Trùng Mã', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
+(47, 'ADMIN21', 'Quản Trị Viên', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin002@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
+(48, 'SV004', 'Nguyễn Văn G', '4a9585c67cfded7ef30bf2281049dbce', 'Sinh viên', 'nvg@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-15 03:33:14');
 
 -- --------------------------------------------------------
 
@@ -464,8 +491,8 @@ INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `e
 --
 
 CREATE TABLE `thanh_vien_nhom` (
-  `id_nhom` int(11) NOT NULL COMMENT 'FK to dang_ky_nhom(id_nhom)',
-  `ma_sv` varchar(50) NOT NULL COMMENT 'FK to sinh_vien(ma_sinh_vien)'
+  `ten_nhom` varchar(50) NOT NULL,
+  `ma_sv` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -476,12 +503,11 @@ CREATE TABLE `thanh_vien_nhom` (
 
 CREATE TABLE `thong_tin_gcn` (
   `id` int(11) NOT NULL,
-  `loai_chung_nhan` enum('Cá nhân','Nhóm','CBL') NOT NULL COMMENT 'Loại chứng nhận: Cá nhân/Nhóm/CBL',
-  `doi_tuong` varchar(255) NOT NULL COMMENT 'Tên sinh viên/tên nhóm/CBL',
-  `giai_thuong` varchar(50) DEFAULT NULL COMMENT 'Giải thưởng (nếu có)',
-  `id_hd` int(11) NOT NULL COMMENT 'Hoạt động thi/HĐ Tham dự, FK to hoat_dong_thi(id_hd) hoặc hoat_dong_tham_du(id_hd_tham_du)',
-  `trang_thai` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'TRUE = Hợp lệ, FALSE = Thu hồi',
-  `ma_btc` varchar(50) NOT NULL COMMENT 'Mã BTC phát hành'
+  `loai_chung_nhan` enum('Cá nhân','Nhóm') NOT NULL,
+  `doi_tuong` int(11) NOT NULL,
+  `noi_dung` text NOT NULL,
+  `trang_thai` tinyint(1) NOT NULL,
+  `ma_btc` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -492,8 +518,8 @@ CREATE TABLE `thong_tin_gcn` (
 -- Indexes for table `ban_giam_khao`
 --
 ALTER TABLE `ban_giam_khao`
-  ADD PRIMARY KEY (`id_hd`,`ma_gv`),
-  ADD KEY `ma_gv` (`ma_gv`);
+  ADD PRIMARY KEY (`id_hd`,`ma_giang_vien`),
+  ADD KEY `mã gv của bgk` (`ma_giang_vien`);
 
 --
 -- Indexes for table `ban_to_chuc`
@@ -517,9 +543,7 @@ ALTER TABLE `can_bo_lop`
 -- Indexes for table `cham_diem`
 --
 ALTER TABLE `cham_diem`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uk_bai_thi_bgk` (`id_hd_thi`,`id_dang_ky`,`ma_bgk`),
-  ADD KEY `ma_bgk` (`ma_bgk`);
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `chi_tiet_rubric`
@@ -528,34 +552,20 @@ ALTER TABLE `chi_tiet_rubric`
   ADD PRIMARY KEY (`id_rubric`,`tieu_chi`);
 
 --
--- Indexes for table `dang_ky_ca_nhan`
+-- Indexes for table `dang_ky_thi`
 --
-ALTER TABLE `dang_ky_ca_nhan`
+ALTER TABLE `dang_ky_thi`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uk_sv_hd` (`ma_sv`,`id_hd`),
-  ADD KEY `id_hd` (`id_hd`);
-
---
--- Indexes for table `dang_ky_nhom`
---
-ALTER TABLE `dang_ky_nhom`
-  ADD PRIMARY KEY (`id_nhom`),
-  ADD UNIQUE KEY `ma_tham_gia` (`ma_tham_gia`),
-  ADD KEY `id_hd` (`id_hd`);
-
---
--- Indexes for table `dang_ky_tham_du`
---
-ALTER TABLE `dang_ky_tham_du`
-  ADD PRIMARY KEY (`ma_sv`,`id_hd`),
-  ADD KEY `id_hd` (`id_hd`);
+  ADD UNIQUE KEY `ten_nhom` (`ten_nhom`),
+  ADD KEY `id_hd` (`id_hd`),
+  ADD KEY `ma_sv` (`ma_sv`);
 
 --
 -- Indexes for table `diem_danh`
 --
 ALTER TABLE `diem_danh`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uk_sv_hd_diem_danh` (`ma_sv`,`id_hd`),
+  ADD KEY `ma_sv` (`ma_sv`),
   ADD KEY `id_hd` (`id_hd`);
 
 --
@@ -563,14 +573,20 @@ ALTER TABLE `diem_danh`
 --
 ALTER TABLE `diem_ren_luyen`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uk_sv_ky_nam` (`ma_sv`,`ky_hoc`,`nam_hoc`);
+  ADD KEY `ma_sv` (`ma_sv`);
 
 --
--- Indexes for table `ds_rubrics`
+-- Indexes for table `dki_tham_du`
 --
-ALTER TABLE `ds_rubrics`
-  ADD PRIMARY KEY (`id_rubric`),
-  ADD UNIQUE KEY `ten_rubric` (`ten_rubric`);
+ALTER TABLE `dki_tham_du`
+  ADD PRIMARY KEY (`ma_sv`,`id_hd`),
+  ADD KEY `id_hd` (`id_hd`);
+
+--
+-- Indexes for table `ds_rubric`
+--
+ALTER TABLE `ds_rubric`
+  ADD PRIMARY KEY (`id_rubric`);
 
 --
 -- Indexes for table `giang_vien`
@@ -579,11 +595,17 @@ ALTER TABLE `giang_vien`
   ADD PRIMARY KEY (`ma_giang_vien`);
 
 --
+-- Indexes for table `hoat_dong`
+--
+ALTER TABLE `hoat_dong`
+  ADD PRIMARY KEY (`id_hd`),
+  ADD KEY `id_sk` (`id_sk`);
+
+--
 -- Indexes for table `hoat_dong_ho_tro`
 --
 ALTER TABLE `hoat_dong_ho_tro`
   ADD PRIMARY KEY (`id_hd_ho_tro`),
-  ADD KEY `id_hd` (`id_hd`),
   ADD KEY `ma_gv` (`ma_gv`);
 
 --
@@ -598,30 +620,18 @@ ALTER TABLE `hoat_dong_tham_du`
 --
 ALTER TABLE `hoat_dong_thi`
   ADD PRIMARY KEY (`id_hd`),
-  ADD UNIQUE KEY `uk_ten_hd_id_sk` (`ten_hd`,`id_sk`),
-  ADD KEY `id_rubric` (`id_rubric`),
-  ADD KEY `id_sk` (`id_sk`);
+  ADD KEY `id_rubric` (`id_rubric`);
 
 --
 -- Indexes for table `ket_qua`
 --
 ALTER TABLE `ket_qua`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `id_cham_diem` (`id_cham_diem`);
+  ADD PRIMARY KEY (`id_dang_ky`);
 
 --
 -- Indexes for table `log_gcn`
 --
 ALTER TABLE `log_gcn`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `id_gcn` (`id_gcn`),
-  ADD KEY `ma_btc` (`ma_btc`);
-
---
--- Indexes for table `log_tra_cuu`
---
-ALTER TABLE `log_tra_cuu`
-  ADD PRIMARY KEY (`id`),
   ADD KEY `id_gcn` (`id_gcn`);
 
 --
@@ -634,23 +644,20 @@ ALTER TABLE `sinh_vien`
 -- Indexes for table `su_kien`
 --
 ALTER TABLE `su_kien`
-  ADD PRIMARY KEY (`id_sk`),
-  ADD UNIQUE KEY `uk_ten_sk_nam_hoc` (`ten_sk`,`nam_hoc`),
-  ADD KEY `ma_btc` (`ma_btc`);
+  ADD PRIMARY KEY (`id_sk`);
 
 --
 -- Indexes for table `tai_khoan`
 --
 ALTER TABLE `tai_khoan`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `ma_ca_nhan` (`ma_ca_nhan`),
-  ADD UNIQUE KEY `email` (`email`);
+  ADD UNIQUE KEY `role` (`ma_ca_nhan`);
 
 --
 -- Indexes for table `thanh_vien_nhom`
 --
 ALTER TABLE `thanh_vien_nhom`
-  ADD PRIMARY KEY (`id_nhom`,`ma_sv`),
+  ADD PRIMARY KEY (`ten_nhom`,`ma_sv`),
   ADD KEY `ma_sv` (`ma_sv`);
 
 --
@@ -658,7 +665,7 @@ ALTER TABLE `thanh_vien_nhom`
 --
 ALTER TABLE `thong_tin_gcn`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `ma_btc` (`ma_btc`);
+  ADD KEY `doi_tuong` (`doi_tuong`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -671,16 +678,10 @@ ALTER TABLE `cham_diem`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `dang_ky_ca_nhan`
+-- AUTO_INCREMENT for table `dang_ky_thi`
 --
-ALTER TABLE `dang_ky_ca_nhan`
+ALTER TABLE `dang_ky_thi`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `dang_ky_nhom`
---
-ALTER TABLE `dang_ky_nhom`
-  MODIFY `id_nhom` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `diem_danh`
@@ -695,10 +696,16 @@ ALTER TABLE `diem_ren_luyen`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `ds_rubrics`
+-- AUTO_INCREMENT for table `ds_rubric`
 --
-ALTER TABLE `ds_rubrics`
-  MODIFY `id_rubric` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+ALTER TABLE `ds_rubric`
+  MODIFY `id_rubric` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+
+--
+-- AUTO_INCREMENT for table `hoat_dong`
+--
+ALTER TABLE `hoat_dong`
+  MODIFY `id_hd` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `hoat_dong_ho_tro`
@@ -713,34 +720,10 @@ ALTER TABLE `hoat_dong_tham_du`
   MODIFY `id_hd_tham_du` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `hoat_dong_thi`
---
-ALTER TABLE `hoat_dong_thi`
-  MODIFY `id_hd` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `ket_qua`
---
-ALTER TABLE `ket_qua`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `log_gcn`
---
-ALTER TABLE `log_gcn`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `log_tra_cuu`
---
-ALTER TABLE `log_tra_cuu`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `su_kien`
 --
 ALTER TABLE `su_kien`
-  MODIFY `id_sk` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_sk` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `tai_khoan`
@@ -762,8 +745,8 @@ ALTER TABLE `thong_tin_gcn`
 -- Constraints for table `ban_giam_khao`
 --
 ALTER TABLE `ban_giam_khao`
-  ADD CONSTRAINT `ban_giam_khao_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `ban_giam_khao_ibfk_2` FOREIGN KEY (`ma_gv`) REFERENCES `giang_vien` (`ma_giang_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `hoạt động thi nào` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `mã gv của bgk` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`ma_giang_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `ban_to_chuc`
@@ -784,37 +767,17 @@ ALTER TABLE `can_bo_lop`
   ADD CONSTRAINT `can_bo_lop_ibfk_1` FOREIGN KEY (`ma_sinh_vien`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
--- Constraints for table `cham_diem`
---
-ALTER TABLE `cham_diem`
-  ADD CONSTRAINT `cham_diem_ibfk_1` FOREIGN KEY (`id_hd_thi`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `cham_diem_ibfk_2` FOREIGN KEY (`ma_bgk`) REFERENCES `giang_vien` (`ma_giang_vien`) ON UPDATE CASCADE;
-
---
 -- Constraints for table `chi_tiet_rubric`
 --
 ALTER TABLE `chi_tiet_rubric`
-  ADD CONSTRAINT `chi_tiet_rubric_ibfk_1` FOREIGN KEY (`id_rubric`) REFERENCES `ds_rubrics` (`id_rubric`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `chi_tiet_rubric_ibfk_1` FOREIGN KEY (`id_rubric`) REFERENCES `ds_rubric` (`id_rubric`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
--- Constraints for table `dang_ky_ca_nhan`
+-- Constraints for table `dang_ky_thi`
 --
-ALTER TABLE `dang_ky_ca_nhan`
-  ADD CONSTRAINT `dang_ky_ca_nhan_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `dang_ky_ca_nhan_ibfk_2` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `dang_ky_nhom`
---
-ALTER TABLE `dang_ky_nhom`
-  ADD CONSTRAINT `dang_ky_nhom_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `dang_ky_tham_du`
---
-ALTER TABLE `dang_ky_tham_du`
-  ADD CONSTRAINT `dang_ky_tham_du_ibfk_1` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `dang_ky_tham_du_ibfk_2` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_tham_du` (`id_hd_tham_du`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `dang_ky_thi`
+  ADD CONSTRAINT `dang_ky_thi_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `dang_ky_thi_ibfk_2` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `diem_danh`
@@ -830,74 +793,73 @@ ALTER TABLE `diem_ren_luyen`
   ADD CONSTRAINT `diem_ren_luyen_ibfk_1` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Constraints for table `dki_tham_du`
+--
+ALTER TABLE `dki_tham_du`
+  ADD CONSTRAINT `dki_tham_du_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_tham_du` (`id_hd_tham_du`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `dki_tham_du_ibfk_2` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `giang_vien`
 --
 ALTER TABLE `giang_vien`
   ADD CONSTRAINT `giang_vien_ibfk_1` FOREIGN KEY (`ma_giang_vien`) REFERENCES `tai_khoan` (`ma_ca_nhan`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Constraints for table `hoat_dong`
+--
+ALTER TABLE `hoat_dong`
+  ADD CONSTRAINT `hoat_dong_ibfk_1` FOREIGN KEY (`id_sk`) REFERENCES `su_kien` (`id_sk`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `hoat_dong_ho_tro`
 --
 ALTER TABLE `hoat_dong_ho_tro`
-  ADD CONSTRAINT `hoat_dong_ho_tro_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `hoat_dong_ho_tro_ibfk_2` FOREIGN KEY (`ma_gv`) REFERENCES `giang_vien` (`ma_giang_vien`) ON UPDATE CASCADE;
+  ADD CONSTRAINT `hoat_dong_ho_tro_ibfk_1` FOREIGN KEY (`ma_gv`) REFERENCES `giang_vien` (`ma_giang_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `hoat_dong_tham_du`
 --
 ALTER TABLE `hoat_dong_tham_du`
-  ADD CONSTRAINT `hoat_dong_tham_du_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong_thi` (`id_hd`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `hoat_dong_tham_du_ibfk_1` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `hoat_dong_thi`
 --
 ALTER TABLE `hoat_dong_thi`
-  ADD CONSTRAINT `hoat_dong_thi_ibfk_1` FOREIGN KEY (`id_rubric`) REFERENCES `ds_rubrics` (`id_rubric`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `hoat_dong_thi_ibfk_2` FOREIGN KEY (`id_sk`) REFERENCES `su_kien` (`id_sk`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `hoat_dong_thi_ibfk_1` FOREIGN KEY (`id_rubric`) REFERENCES `ds_rubric` (`id_rubric`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `hoat_dong_thi_ibfk_2` FOREIGN KEY (`id_hd`) REFERENCES `hoat_dong` (`id_hd`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `ket_qua`
 --
 ALTER TABLE `ket_qua`
-  ADD CONSTRAINT `ket_qua_ibfk_1` FOREIGN KEY (`id_cham_diem`) REFERENCES `cham_diem` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `ket_qua_ibfk_1` FOREIGN KEY (`id_dang_ky`) REFERENCES `dang_ky_thi` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `log_gcn`
 --
 ALTER TABLE `log_gcn`
-  ADD CONSTRAINT `log_gcn_ibfk_1` FOREIGN KEY (`id_gcn`) REFERENCES `thong_tin_gcn` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `log_gcn_ibfk_2` FOREIGN KEY (`ma_btc`) REFERENCES `ban_to_chuc` (`ma_giang_vien`) ON UPDATE CASCADE;
-
---
--- Constraints for table `log_tra_cuu`
---
-ALTER TABLE `log_tra_cuu`
-  ADD CONSTRAINT `log_tra_cuu_ibfk_1` FOREIGN KEY (`id_gcn`) REFERENCES `thong_tin_gcn` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `log_gcn_ibfk_1` FOREIGN KEY (`id_gcn`) REFERENCES `thong_tin_gcn` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `sinh_vien`
 --
 ALTER TABLE `sinh_vien`
-  ADD CONSTRAINT `sinh_vien_ibfk_1` FOREIGN KEY (`ma_sinh_vien`) REFERENCES `tai_khoan` (`ma_ca_nhan`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `su_kien`
---
-ALTER TABLE `su_kien`
-  ADD CONSTRAINT `su_kien_ibfk_1` FOREIGN KEY (`ma_btc`) REFERENCES `ban_to_chuc` (`ma_giang_vien`) ON UPDATE CASCADE;
+  ADD CONSTRAINT `mã sinh viên` FOREIGN KEY (`ma_sinh_vien`) REFERENCES `tai_khoan` (`ma_ca_nhan`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `thanh_vien_nhom`
 --
 ALTER TABLE `thanh_vien_nhom`
-  ADD CONSTRAINT `thanh_vien_nhom_ibfk_1` FOREIGN KEY (`id_nhom`) REFERENCES `dang_ky_nhom` (`id_nhom`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `thanh_vien_nhom_ibfk_1` FOREIGN KEY (`ten_nhom`) REFERENCES `dang_ky_thi` (`ten_nhom`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `thanh_vien_nhom_ibfk_2` FOREIGN KEY (`ma_sv`) REFERENCES `sinh_vien` (`ma_sinh_vien`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `thong_tin_gcn`
 --
 ALTER TABLE `thong_tin_gcn`
-  ADD CONSTRAINT `thong_tin_gcn_ibfk_1` FOREIGN KEY (`ma_btc`) REFERENCES `ban_to_chuc` (`ma_giang_vien`) ON UPDATE CASCADE;
+  ADD CONSTRAINT `thong_tin_gcn_ibfk_1` FOREIGN KEY (`doi_tuong`) REFERENCES `ket_qua` (`id_dang_ky`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

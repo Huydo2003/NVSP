@@ -22,6 +22,10 @@ import BanToChucManagement from './components/BanToChucManagement';
 import AccountPage from './components/AccountPage';
 import CanBoLopManagement from './components/CanBoLopManagement';
 import RubricManagement from './components/RubricManagement';
+import EventManagement from './components/EventManagement';
+import HoatDongManagement from './components/HoatDongManagement';
+import HoatDongThiManagement from './components/HoatDongThiManagement';
+import BanGiamKhaoManagement from './components/BanGiamKhaoManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -150,6 +154,14 @@ function App() {
         return <AccountPage user={currentUser} onUserUpdate={setCurrentUser} />;
       case 'ds_rubrics':
         return <RubricManagement user={currentUser} />;
+      case 'su_kien':
+        return <EventManagement user={currentUser} />;
+      case 'hoat_dong':
+        return <HoatDongManagement user={currentUser} />;
+      case 'hoat_dong_thi':
+        return <HoatDongThiManagement user={currentUser} />;
+      case 'ban_giam_khao':
+        return <BanGiamKhaoManagement />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">

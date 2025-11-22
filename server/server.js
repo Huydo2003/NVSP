@@ -52,11 +52,21 @@ async function isUserBcn(ma_ca_nhan) {
 // Helper: check whether a given ma_ca_nhan is an active ban_to_chuc (ban_to_chuc.trang_thai = 1)
 async function isUserBtc(ma_ca_nhan) {
   try {
-    if (!ma_ca_nhan) return false;
+    if (!ma_ca_nhan) {
+      console.log('isUserBtc: ma_ca_nhan is falsy');
+      return false;
+    }
+    console.log('isUserBtc: querying ban_to_chuc for ma_giang_vien =', ma_ca_nhan);
     const [rows] = await pool.execute('SELECT ma_giang_vien, trang_thai FROM ban_to_chuc WHERE ma_giang_vien = ? LIMIT 1', [ma_ca_nhan]);
-    console.log('isUserBtc query for', ma_ca_nhan, '- rows:', rows);
-    const result = (rows && rows.length > 0 && (rows[0].trang_thai === 1 || rows[0].trang_thai === true));
-    console.log('isUserBtc result for', ma_ca_nhan, ':', result);
+    console.log('isUserBtc: query returned', rows ? rows.length : 0, 'rows:', rows);
+    if (!rows || rows.length === 0) {
+      console.log('isUserBtc: no rows found, returning false');
+      return false;
+    }
+    const trang_thai = rows[0].trang_thai;
+    console.log('isUserBtc: trang_thai =', trang_thai, 'type:', typeof trang_thai);
+    const result = (trang_thai === 1 || trang_thai === true);
+    console.log('isUserBtc: final result =', result);
     return result;
   } catch (err) {
     console.error('isUserBtc error', err);
@@ -135,10 +145,17 @@ app.get('/api/me/is_bcn', auth, async (req, res) => {
 // NEW: Check whether current user is btc (active)
 app.get('/api/me/is_btc', auth, async (req, res) => {
   try {
+    console.log('\n=== /api/me/is_btc DEBUG START ===');
+    console.log('req.user:', JSON.stringify(req.user));
     const ma = req.user && req.user.ma_ca_nhan;
-    console.log('GET /api/me/is_btc - ma_ca_nhan:', ma, 'user:', req.user);
+    console.log('Extracted ma_ca_nhan:', ma);
+    if (!ma) {
+      console.log('ERROR: ma_ca_nhan is missing from token!');
+      return res.json({ isBtc: false, debug: 'ma_ca_nhan missing from token' });
+    }
     const btc = await isUserBtc(ma);
-    console.log('isUserBtc result:', btc);
+    console.log('isUserBtc returned:', btc);
+    console.log('=== /api/me/is_btc DEBUG END ===\n');
     res.json({ isBtc: !!btc });
   } catch (err) {
     console.error('GET /api/me/is_btc error', err);
@@ -192,6 +209,140 @@ app.get('/api/users/ma/:ma', auth, async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('GET /api/users/ma/:ma error', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// --- Su kien (Events) ---
+// List events - any authenticated user can view
+app.get('/api/su_kien', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT id_sk, ten_sk, nam_hoc, ma_btc, trang_thai FROM su_kien ORDER BY nam_hoc DESC, ten_sk ASC');
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/su_kien error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Get event details by id_sk - any authenticated user can view
+app.get('/api/su_kien/:id_sk', auth, async (req, res) => {
+  try {
+    const { id_sk } = req.params;
+    const [rows] = await pool.execute('SELECT id_sk, ten_sk, nam_hoc, ma_btc, trang_thai FROM su_kien WHERE id_sk = ? LIMIT 1', [id_sk]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Sự kiện không tồn tại' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /api/su_kien/:id_sk error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Create event - only Ban Tổ Chức (BTC) or admin
+app.post('/api/su_kien', auth, async (req, res) => {
+  try {
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể tạo sự kiện' });
+    }
+
+    const { ten_sk, nam_hoc } = req.body || {};
+    if (!ten_sk) return res.status(400).json({ message: 'Thiếu thông tin ten_sk' });
+    if (!nam_hoc) return res.status(400).json({ message: 'Thiếu thông tin nam_hoc' });
+
+    const year = Number(nam_hoc);
+    const currentYear = new Date().getFullYear();
+    if (Number.isNaN(year)) return res.status(400).json({ message: 'nam_hoc không hợp lệ' });
+    if (year > currentYear) return res.status(400).json({ message: 'Năm tạo sự kiện không được trước năm hiện tại' });
+
+    // Uniqueness: no duplicate event name in same year (case-insensitive)
+    const [exist] = await pool.execute('SELECT id_sk FROM su_kien WHERE nam_hoc = ? AND LOWER(ten_sk) = LOWER(?) LIMIT 1', [year, ten_sk]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Sự kiện '${ten_sk}' đã tồn tại trong năm học ${year}` });
+    }
+
+    // Insert event. trang_thai = true (open) by default
+    await pool.execute('INSERT INTO su_kien (ten_sk, nam_hoc, ma_btc, trang_thai) VALUES (?, ?, ?, ?)', [ten_sk, year, req.user.ma_ca_nhan, 1]);
+    res.status(201).json({ message: 'Đã tạo sự kiện' });
+  } catch (err) {
+    console.error('POST /api/su_kien error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Update event (e.g., close/open registration) - only admin or the BTC who created it
+app.put('/api/su_kien/:id_sk', auth, async (req, res) => {
+  try {
+    const { id_sk } = req.params;
+    const { ten_sk, nam_hoc, trang_thai } = req.body || {};
+
+    // Lấy thông tin sự kiện
+    const [rows] = await pool.execute('SELECT id_sk, ma_btc FROM su_kien WHERE id_sk = ? LIMIT 1', [id_sk]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Sự kiện không tồn tại' });
+    const event = rows[0];
+
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+    if (!isAdmin && (!isBtc || event.ma_btc !== req.user.ma_ca_nhan)) {
+      return res.status(403).json({ message: 'Chỉ BTC tạo sự kiện này hoặc Admin mới có thể sửa' });
+    }
+
+    // Update fields nếu có
+    const updates = [];
+    const params = [];
+
+    if (ten_sk) {
+      // Check duplicate tên cùng năm
+      const [exist] = await pool.execute(
+        'SELECT id_sk FROM su_kien WHERE nam_hoc = ? AND LOWER(ten_sk) = LOWER(?) AND id_sk <> ? LIMIT 1',
+        [nam_hoc || event.nam_hoc, ten_sk, id_sk]
+      );
+      if (exist && exist.length > 0) {
+        return res.status(400).json({ message: `Sự kiện '${ten_sk}' đã tồn tại trong năm học` });
+      }
+      updates.push('ten_sk = ?');
+      params.push(ten_sk);
+    }
+    if (nam_hoc) {
+      updates.push('nam_hoc = ?');
+      params.push(nam_hoc);
+    }
+    if (typeof trang_thai !== 'undefined') {
+      const tt = (trang_thai === true || trang_thai === 1 || String(trang_thai) === '1' || String(trang_thai).toLowerCase() === 'true') ? 1 : 0;
+      updates.push('trang_thai = ?');
+      params.push(tt);
+    }
+
+    if (updates.length === 0) return res.status(400).json({ message: 'Không có thông tin cập nhật' });
+
+    params.push(id_sk);
+    await pool.execute(`UPDATE su_kien SET ${updates.join(', ')} WHERE id_sk = ?`, params);
+    res.json({ message: 'Đã cập nhật sự kiện' });
+  } catch (err) {
+    console.error('PUT /api/su_kien/:id_sk error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// 4. Delete event - only BTC (creator) or Admin
+app.delete('/api/su_kien/:id_sk', auth, async (req, res) => {
+  try {
+    const { id_sk } = req.params;
+
+    const [rows] = await pool.execute('SELECT id_sk, ma_btc FROM su_kien WHERE id_sk = ? LIMIT 1', [id_sk]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Sự kiện không tồn tại' });
+    const event = rows[0];
+
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+    if (!isAdmin && (!isBtc || event.ma_btc !== req.user.ma_ca_nhan)) {
+      return res.status(403).json({ message: 'Chỉ BTC tạo sự kiện này hoặc Admin mới có thể xóa' });
+    }
+
+    await pool.execute('DELETE FROM su_kien WHERE id_sk = ?', [id_sk]);
+    res.json({ message: 'Đã xóa sự kiện' });
+  } catch (err) {
+    console.error('DELETE /api/su_kien/:id_sk error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
@@ -326,30 +477,30 @@ app.delete('/api/users/:id', auth, async (req, res) => {
 app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     if (!req.file) return res.status(400).json({ message: 'Chưa chọn file' });
-    
+
     // Parse Excel file
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) return res.status(400).json({ message: 'File Excel không có sheet nào' });
-    
+
     const sheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(sheet);
-    
+
     if (!data || data.length === 0) return res.status(400).json({ message: 'File Excel không có dữ liệu' });
-    
+
     // Validate and prepare rows
     const results = {
       success: [],
       errors: []
     };
-    
+
     // Process each row
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       const rowNum = i + 2; // Excel row number (header is row 1)
-      
+
       try {
         // Extract and validate data
         const ma_ca_nhan = String(row.ma_ca_nhan || '').trim();
@@ -357,22 +508,22 @@ app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
         const loai_tk_input = String(row.loai_tk || '').trim();
         const mat_khau_input = String(row.mat_khau || '').trim();
         const email = String(row.email || '').trim() || null;
-        
+
         if (!ma_ca_nhan) throw new Error('Mã cá nhân không được để trống');
         if (!ho_ten) throw new Error('Họ tên không được để trống');
         if (!loai_tk_input) throw new Error('Loại tài khoản không được để trống');
-        
+
         const loai_tk = canonicalLoaiTk(loai_tk_input);
         if (!loai_tk) throw new Error(`Loại tài khoản không hợp lệ: ${loai_tk_input}. Giá trị hợp lệ: Sinh viên, Giảng viên, Admin`);
-        
+
         const mat_khau = mat_khau_input || ma_ca_nhan; // Default password to ma_ca_nhan if not provided
-        
+
         // Check if user already exists
         const [exist] = await pool.execute(
           'SELECT id, ma_ca_nhan, email FROM tai_khoan WHERE ma_ca_nhan = ? OR (email IS NOT NULL AND email = ?) LIMIT 1',
           [ma_ca_nhan, email]
         );
-        
+
         if (exist && exist.length > 0) {
           const existing = exist[0];
           if (existing.ma_ca_nhan === ma_ca_nhan) {
@@ -382,13 +533,13 @@ app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
             throw new Error(`Email '${email}' đã tồn tại`);
           }
         }
-        
+
         // Insert user
         await pool.execute(
           'INSERT INTO tai_khoan (ma_ca_nhan, ho_ten, mat_khau, loai_tk, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
           [ma_ca_nhan, ho_ten, md5(mat_khau), loai_tk, email]
         );
-        
+
         // Create corresponding record in sinh_vien or giang_vien table
         if (loai_tk === 'Sinh viên') {
           const lop = String(row.lop || '').trim() || null;
@@ -401,7 +552,7 @@ app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
           );
         } else if (loai_tk === 'Giảng viên') {
           const khoa = String(row.khoa || '').trim() || null;
-          
+
           // Check if khoa already exists for another giang_vien
           if (khoa) {
             const [existingKhoa] = await pool.execute(
@@ -412,13 +563,13 @@ app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
               throw new Error(`Khoa '${khoa}' đã được gán cho giảng viên khác`);
             }
           }
-          
+
           await pool.execute(
             'INSERT INTO giang_vien (ma_giang_vien, khoa) VALUES (?, ?)',
             [ma_ca_nhan, khoa]
           );
         }
-        
+
         results.success.push({
           rowNum,
           ma_ca_nhan,
@@ -433,7 +584,7 @@ app.post('/api/users/import', auth, upload.single('file'), async (req, res) => {
         });
       }
     }
-    
+
     res.json(results);
   } catch (err) {
     console.error('POST /api/users/import error:', err);
@@ -475,7 +626,7 @@ app.post('/api/bcn_khoa', auth, async (req, res) => {
       // Fallback cho trường hợp query phức tạp:
       return res.status(400).json({ message: 'ma_giang_vien hoặc khoa đã tồn tại' });
     }
-    
+
     await pool.execute('INSERT INTO bcn_khoa (ma_giang_vien, khoa, bat_dau_nk, ket_thuc_nk, trang_thai) VALUES (?, ?, ?, ?, ?)', [ma_giang_vien, khoa, bat_dau_nk || null, ket_thuc_nk || null, trang_thai ? 1 : 0]);
     res.status(201).json({ message: 'Đã thêm BCN Khoa' });
   } catch (err) {
@@ -716,7 +867,7 @@ app.get('/api/bcn-khoa', auth, async (req, res) => {
 app.get('/api/giang-vien', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      'SELECT g.ma_giang_vien, t.ho_ten FROM giang_vien g JOIN tai_khoan t ON g.ma_giang_vien = t.ma_ca_nhan ORDER BY t.ho_ten ASC'
+      'SELECT g.ma_giang_vien, g.khoa, t.email, t.ho_ten FROM giang_vien g JOIN tai_khoan t ON g.ma_giang_vien = t.ma_ca_nhan ORDER BY t.ho_ten ASC'
     );
     res.json(rows || []);
   } catch (err) {
@@ -795,7 +946,7 @@ app.delete('/api/bcn-khoa/:ma_giang_vien', auth, async (req, res) => {
 app.get('/api/giang_vien', auth, async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     const [rows] = await pool.execute(
       'SELECT gv.ma_giang_vien, gv.khoa, t.ho_ten, t.email FROM giang_vien gv JOIN tai_khoan t ON gv.ma_giang_vien = t.ma_ca_nhan ORDER BY t.ho_ten ASC'
     );
@@ -810,13 +961,13 @@ app.get('/api/giang_vien', auth, async (req, res) => {
 app.get('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     const { ma_giang_vien } = req.params;
     const [rows] = await pool.execute(
       'SELECT gv.ma_giang_vien, gv.khoa, t.ho_ten, t.email FROM giang_vien gv JOIN tai_khoan t ON gv.ma_giang_vien = t.ma_ca_nhan WHERE gv.ma_giang_vien = ? LIMIT 1',
       [ma_giang_vien]
     );
-    
+
     if (!rows || rows.length === 0) return res.status(404).json({ message: 'Giảng viên không tồn tại' });
     res.json(rows[0]);
   } catch (err) {
@@ -829,7 +980,7 @@ app.get('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
 app.post('/api/giang_vien', auth, async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     const { ma_giang_vien, khoa } = req.body || {};
     if (!ma_giang_vien) return res.status(400).json({ message: 'Thiếu thông tin bắt buộc: ma_giang_vien' });
 
@@ -847,12 +998,12 @@ app.post('/api/giang_vien', auth, async (req, res) => {
 
     // Insert mới
     await pool.execute('INSERT INTO giang_vien (ma_giang_vien, khoa) VALUES (?, ?)', [ma_giang_vien, khoa || null]);
-    
+
     const [rows] = await pool.execute(
       'SELECT gv.ma_giang_vien, gv.khoa, t.ho_ten, t.email FROM giang_vien gv JOIN tai_khoan t ON gv.ma_giang_vien = t.ma_ca_nhan WHERE gv.ma_giang_vien = ? LIMIT 1',
       [ma_giang_vien]
     );
-    
+
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('POST /api/giang_vien error:', err);
@@ -864,7 +1015,7 @@ app.post('/api/giang_vien', auth, async (req, res) => {
 app.put('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     const { ma_giang_vien } = req.params;
     const { khoa } = req.body || {};
 
@@ -876,7 +1027,7 @@ app.put('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
 
     const updates = [];
     const params = [];
-    
+
     if (khoa !== undefined) {
       updates.push('khoa = ?');
       params.push(khoa || null);
@@ -891,7 +1042,7 @@ app.put('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
       'SELECT gv.ma_giang_vien, gv.khoa, t.ho_ten, t.email FROM giang_vien gv JOIN tai_khoan t ON gv.ma_giang_vien = t.ma_ca_nhan WHERE gv.ma_giang_vien = ? LIMIT 1',
       [ma_giang_vien]
     );
-    
+
     res.json(rows[0]);
   } catch (err) {
     console.error('PUT /api/giang_vien/:ma_giang_vien error:', err);
@@ -903,9 +1054,9 @@ app.put('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
 app.delete('/api/giang_vien/:ma_giang_vien', auth, async (req, res) => {
   try {
     if ((req.user.role || '').toLowerCase() !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
-    
+
     const { ma_giang_vien } = req.params;
-    
+
     // Check if exists
     const [exist] = await pool.execute('SELECT ma_giang_vien FROM giang_vien WHERE ma_giang_vien = ? LIMIT 1', [ma_giang_vien]);
     if (!exist || exist.length === 0) {
@@ -1078,7 +1229,7 @@ app.post('/api/can_bo_lop', auth, async (req, res) => {
 
     const { ma_sinh_vien, bat_dau_nk, ket_thuc_nk, trang_thai } = req.body || {};
     if (!ma_sinh_vien) return res.status(400).json({ message: 'Thiếu thông tin ma_sinh_vien' });
-    
+
     // uniqueness check
     const [exist] = await pool.execute('SELECT ma_sinh_vien FROM can_bo_lop WHERE ma_sinh_vien = ? LIMIT 1', [ma_sinh_vien]);
 
@@ -1140,36 +1291,36 @@ app.delete('/api/can_bo_lop/:ma_sinh_vien', auth, async (req, res) => {
   }
 });
 
-// ===== DS_RUBrICS =====
-app.get('/api/ds_rubrics', auth, async (req, res) => {
+// ===== DS_RUBrIC =====
+app.get('/api/ds_rubric', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xem Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể xem Rubric' });
     }
-    
-    const [rows] = await pool.execute('SELECT id_rubric, ten_rubric FROM ds_rubrics ORDER BY ten_rubric ASC');
+
+    const [rows] = await pool.execute('SELECT id_rubric, ten_rubric FROM ds_rubric ORDER BY ten_rubric ASC');
     res.json(rows || []);
   }
   catch (err) {
-    console.error('GET /api/ds_rubrics error:', err);
+    console.error('GET /api/ds_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
 
-app.post('/api/ds_rubrics', auth, async (req, res) => {
+app.post('/api/ds_rubric', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể tạo Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể tạo Rubric' });
     }
-    
+
     const { ten_rubric } = req.body || {};
 
     // uniqueness check
-    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubrics WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
+    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubric WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
 
     if (exist && exist.length > 0) {
       const existing = exist[0];
@@ -1178,30 +1329,30 @@ app.post('/api/ds_rubrics', auth, async (req, res) => {
         return res.status(400).json({ message: `Tên Rubric (${ten_rubric}) đã tồn tại` });
       }
     }
-    
+
     if (!ten_rubric) return res.status(400).json({ message: 'Thiếu thông tin ten_rubric' });
-    await pool.execute('INSERT INTO ds_rubrics (ten_rubric) VALUES (?)', [ten_rubric]);
+    await pool.execute('INSERT INTO ds_rubric (ten_rubric) VALUES (?)', [ten_rubric]);
     res.status(201).json({ message: 'Đã thêm rubric' });
   }
   catch (err) {
-    console.error('POST /api/ds_rubrics error:', err);
+    console.error('POST /api/ds_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
 
-app.put('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
+app.put('/api/ds_rubric/:id_rubric', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể sửa Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể sửa Rubric' });
     }
-    
+
     const { id_rubric } = req.params;
     const { ten_rubric } = req.body || {};
-    
+
     // uniqueness check
-    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubrics WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
+    const [exist] = await pool.execute('SELECT ten_rubric FROM ds_rubric WHERE ten_rubric = ? LIMIT 1', [ten_rubric]);
 
     if (exist && exist.length > 0) {
       const existing = exist[0];
@@ -1210,31 +1361,31 @@ app.put('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
         return res.status(400).json({ message: `Tên Rubric (${ten_rubric}) đã tồn tại` });
       }
     }
-    
+
     if (!ten_rubric) return res.status(400).json({ message: 'Thiếu thông tin ten_rubric' });
-    await pool.execute('UPDATE ds_rubrics SET ten_rubric = ? WHERE id_rubric = ?', [ten_rubric, id_rubric]);
+    await pool.execute('UPDATE ds_rubric SET ten_rubric = ? WHERE id_rubric = ?', [ten_rubric, id_rubric]);
     res.json({ message: 'Đã cập nhật rubric' });
   }
   catch (err) {
-    console.error('PUT /api/ds_rubrics/:id_rubric error:', err);
+    console.error('PUT /api/ds_rubric/:id_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
 
-app.delete('/api/ds_rubrics/:id_rubric', auth, async (req, res) => {
+app.delete('/api/ds_rubric/:id_rubric', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xóa Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể xóa Rubric' });
     }
-    
+
     const { id_rubric } = req.params;
-    await pool.execute('DELETE FROM ds_rubrics WHERE id_rubric = ?', [id_rubric]);
+    await pool.execute('DELETE FROM ds_rubric WHERE id_rubric = ?', [id_rubric]);
     res.json({ message: 'Đã xóa rubric' });
   }
   catch (err) {
-    console.error('DELETE /api/ds_rubrics/:id_rubric error:', err);
+    console.error('DELETE /api/ds_rubric/:id_rubric error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
@@ -1253,23 +1404,28 @@ app.get('/api/chi_tiet_rubric/:id_rubric', auth, async (req, res) => {
 
 app.post('/api/chi_tiet_rubric', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể tạo chi tiết Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể tạo chi tiết Rubric' });
     }
-    
+
     const { id_rubric, tieu_chi, diem_toi_da } = req.body || {};
-    
+
     if (!tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
-    
+
+    const diem = Number(diem_toi_da);
+    if (isNaN(diem)) {
+      return res.status(400).json({ message: 'Điểm tối đa phải là số' });
+    }
+
     // Check duplicate tieu_chi
     const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, tieu_chi]);
     if (exist && exist.length > 0) {
       return res.status(400).json({ message: `Tiêu chí '${tieu_chi}' đã tồn tại trong Rubric này` });
     }
-    
-    await pool.execute('INSERT INTO chi_tiet_rubric (id_rubric, tieu_chi, diem_toi_da) VALUES (?, ?, ?)', [id_rubric, tieu_chi, diem_toi_da || 0]);
+
+    await pool.execute('INSERT INTO chi_tiet_rubric (id_rubric, tieu_chi, diem_toi_da) VALUES (?, ?, ?)', [id_rubric, tieu_chi, diem || 0]);
     res.status(201).json({ message: 'Đã thêm chi tiết Rubric' });
   } catch (err) {
     console.error('POST chi_tiet_rubric error:', err);
@@ -1279,17 +1435,22 @@ app.post('/api/chi_tiet_rubric', auth, async (req, res) => {
 
 app.put('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể sửa chi tiết Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể sửa chi tiết Rubric' });
     }
-    
+
     const { id_rubric, tieu_chi } = req.params;
     const { tieu_chi: new_tieu_chi, diem_toi_da } = req.body || {};
-    
+
     if (!new_tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
-    
+
+    const diem = Number(diem_toi_da);
+    if (isNaN(diem)) {
+      return res.status(400).json({ message: 'Điểm tối đa phải là số' });
+    }
+
     // If tieu_chi changed, check duplicate
     if (new_tieu_chi !== tieu_chi) {
       const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, new_tieu_chi]);
@@ -1297,8 +1458,8 @@ app.put('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
         return res.status(400).json({ message: `Tiêu chí '${new_tieu_chi}' đã tồn tại` });
       }
     }
-    
-    await pool.execute('UPDATE chi_tiet_rubric SET tieu_chi = ?, diem_toi_da = ? WHERE id_rubric = ? AND tieu_chi = ?', [new_tieu_chi, diem_toi_da || 0, id_rubric, tieu_chi]);
+
+    await pool.execute('UPDATE chi_tiet_rubric SET tieu_chi = ?, diem_toi_da = ? WHERE id_rubric = ? AND tieu_chi = ?', [new_tieu_chi, diem || 0, id_rubric, tieu_chi]);
     res.json({ message: 'Đã cập nhật chi tiết Rubric' });
   } catch (err) {
     console.error('PUT chi_tiet_rubric error:', err);
@@ -1308,12 +1469,12 @@ app.put('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
 
 app.delete('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
   try {
-    // Check BTC or BCN (active)
-    const isBcn = await isUserBcn(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBcn) {
-      return res.status(403).json({ message: 'Chỉ BTC/BCN mới có thể xóa chi tiết Rubric' });
+    // Check BTC (Ban Tổ Chức) only
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể xóa chi tiết Rubric' });
     }
-    
+
     const { id_rubric, tieu_chi } = req.params;
     await pool.execute('DELETE FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ?', [id_rubric, tieu_chi]);
     res.json({ message: 'Đã xóa chi tiết Rubric' });
@@ -1322,6 +1483,221 @@ app.delete('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) =
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
+
+
+// ===== HOAT_DONG CRUD =====
+app.get('/api/hoat_dong', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT hd.id_hd, hd.ten_hd, hd.loai_hd, hd.tg_bat_dau, hd.tg_ket_thuc, hd.dia_diem, hd.id_sk
+      FROM hoat_dong hd
+      ORDER BY hd.tg_bat_dau DESC`
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/hoat_dong error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Post new hoat_dong
+app.post('/api/hoat_dong', auth, async (req, res) => {
+  try {
+    const { ten_hd, loai_hd, tg_bat_dau, tg_ket_thuc, dia_diem, id_sk } = req.body || {};
+
+    if (!ten_hd || !loai_hd || !tg_bat_dau || !tg_ket_thuc || !dia_diem || !id_sk) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    // Check duplicate ten_hd within the same event (id_sk)
+    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_sk = ? AND ten_hd = ? LIMIT 1', [id_sk, ten_hd]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Tên hoạt động (${ten_hd}) đã tồn tại trong sự kiện này` });
+    }
+    await pool.execute(
+      'INSERT INTO hoat_dong (ten_hd, loai_hd, tg_bat_dau, tg_ket_thuc, dia_diem, id_sk) VALUES (?, ?, ?, ?, ?, ?)',
+      [ten_hd, loai_hd, tg_bat_dau, tg_ket_thuc, dia_diem, id_sk]
+    );
+    res.status(201).json({ message: 'Đã tạo hoạt động' });
+  } catch (err) {
+    console.error('POST /api/hoat_dong error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Put update hoat_dong
+app.put('/api/hoat_dong/:id_hd', auth, async (req, res) => {
+  try {
+    const { id_hd } = req.params;
+    const { ten_hd, loai_hd, tg_bat_dau, tg_ket_thuc, dia_diem, id_sk } = req.body || {};
+    if (!ten_hd || !loai_hd || !tg_bat_dau || !tg_ket_thuc || !dia_diem || !id_sk) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    // Check duplicate ten_hd within the same event (id_sk)
+    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_sk = ? AND ten_hd = ? AND id_hd != ? LIMIT 1', [id_sk, ten_hd, id_hd]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Tên hoạt động (${ten_hd}) đã tồn tại trong sự kiện này` });
+    }
+    await pool.execute(
+      'UPDATE hoat_dong SET ten_hd = ?, loai_hd = ?, tg_bat_dau = ?, tg_ket_thuc = ?, dia_diem = ?, id_sk = ? WHERE id_hd = ?',
+      [ten_hd, loai_hd, tg_bat_dau, tg_ket_thuc, dia_diem, id_sk, id_hd]
+    );
+    res.json({ message: 'Đã cập nhật hoạt động' });
+  } catch (err) {
+    console.error('PUT /api/hoat_dong/:id_hd error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Delete hoat_dong
+app.delete('/api/hoat_dong/:id_hd', auth, async (req, res) => {
+  try {
+    const { id_hd } = req.params;
+    await pool.execute('DELETE FROM hoat_dong WHERE id_hd = ?', [id_hd]);
+    res.json({ message: 'Đã xóa hoạt động' });
+  } catch (err) {
+    console.error('DELETE /api/hoat_dong_thi/:id_hd error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+
+// ===== HOAT_DONG_THI CRUD =====
+app.get('/api/hoat_dong_thi', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT hdt.id_hd, hd.ten_hd, hdt.id_rubric, dr.ten_rubric, hdt.hinh_thuc, hdt.so_luong_tv
+       FROM hoat_dong_thi hdt
+       JOIN ds_rubric dr ON hdt.id_rubric = dr.id_rubric
+       JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd`
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/hoat_dong_thi error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Post new hoat_dong_thi
+app.post('/api/hoat_dong_thi', auth, async (req, res) => {
+  try {
+    const { id_hd, id_rubric, hinh_thuc, so_luong_tv } = req.body || {};
+
+    if (!id_hd || !id_rubric || !hinh_thuc || !so_luong_tv) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Check duplicate id_hd
+    const [exist] = await pool.execute('SELECT id_hd FROM hoat_dong_thi WHERE id_hd = ? LIMIT 1', [id_hd]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Hoạt động này đã tồn tại.` });
+    }
+
+    await pool.execute(
+      'INSERT INTO hoat_dong_thi (id_hd, id_rubric, hinh_thuc, so_luong_tv) VALUES (?, ?, ?, ?)',
+      [id_hd, id_rubric, hinh_thuc, so_luong_tv]
+    );
+    res.status(201).json({ message: 'Đã tạo hoạt động thi' });
+  } catch (err) {
+    console.error('POST /api/hoat_dong_thi error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Put update hoat_dong_thi
+app.put('/api/hoat_dong_thi/:id_hd', auth, async (req, res) => {
+  try {
+    const { id_hd } = req.params;
+    const { id_rubric, hinh_thuc, so_luong_tv } = req.body || {};
+
+    if (!id_hd || !id_rubric || !hinh_thuc || !so_luong_tv) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Check duplicate id_hd
+    const [exist] = await pool.execute('SELECT id_hd FROM hoat_dong_thi WHERE id_hd = ? LIMIT 1', [id_hd]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Hoạt động này đã tồn tại.` });
+    }
+
+    await pool.execute(
+      'UPDATE hoat_dong_thi SET id_rubric = ?, hinh_thuc = ?, so_luong_tv = ? WHERE id_hd = ?',
+      [id_rubric, hinh_thuc, so_luong_tv, id_hd]
+    );
+    res.json({ message: 'Đã cập nhật hoạt động thi' });
+  } catch (err) {
+    console.error('PUT /api/hoat_dong_thi/:id_hd error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Delete hoat_dong_thi
+app.delete('/api/hoat_dong_thi/:id_hd', auth, async (req, res) => {
+  try {
+    const { id_hd } = req.params;
+    await pool.execute('DELETE FROM hoat_dong_thi WHERE id_hd = ?', [id_hd]);
+    res.json({ message: 'Đã xóa hoạt động thi' });
+  } catch (err) {
+    console.error('DELETE /api/hoat_dong_thi/:id_hd error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// === ban_giam_khao CRUD ===
+app.get('/api/ban_giam_khao', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT bgk.id_hd, hd.ten_hd, bgk.ma_giang_vien, tk.ho_ten
+     FROM ban_giam_khao bgk
+     LEFT JOIN hoat_dong_thi hdt ON bgk.id_hd = hdt.id_hd
+     LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+     LEFT JOIN giang_vien gv ON bgk.ma_giang_vien = gv.ma_giang_vien
+     LEFT JOIN tai_khoan tk ON gv.ma_giang_vien = tk.ma_ca_nhan`
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/ban_giam_khao error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Post new ban_giam_khao
+app.post('/api/ban_giam_khao', auth, async (req, res) => {
+  try {
+    const { id_hd, ma_giang_vien } = req.body || {};
+    if (!id_hd || !ma_giang_vien) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Check duplicate id_hd and ma_giang_vien
+    const [exist] = await pool.execute('SELECT id_hd, ma_giang_vien FROM ban_giam_khao WHERE id_hd = ? AND ma_giang_vien = ? LIMIT 1', [id_hd, ma_giang_vien]);
+    if (exist && exist.length > 0) {
+      return res.status(400).json({ message: `Giảng viên này đã là thành viên ban giám khảo của hoạt động.` });
+    }
+
+    await pool.execute(
+      'INSERT INTO ban_giam_khao (id_hd, ma_giang_vien) VALUES (?, ?)',
+      [id_hd, ma_giang_vien]
+    );
+    res.status(201).json({ message: 'Đã thêm ban giám khảo' });
+  } catch (err) {
+    console.error('POST /api/ban_giam_khao error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Delete ban_giam_khao
+app.delete('/api/ban_giam_khao/:id_hd/:ma_giang_vien', auth, async (req, res) => {
+  try {
+    const { id_hd, ma_giang_vien } = req.params;
+    await pool.execute('DELETE FROM ban_giam_khao WHERE id_hd = ? AND ma_giang_vien = ?', [id_hd, ma_giang_vien]);
+    res.json({ message: 'Đã xóa ban giám khảo' });
+  }
+  catch (err) {
+    console.error('DELETE /api/ban_giam_khao/:id_hd/:ma_giang_vien error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+})
+
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

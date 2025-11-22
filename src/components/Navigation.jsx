@@ -17,6 +17,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
   const { config } = state;
   const [isBcn, setIsBcn] = useState(false);
   const [isBtc, setIsBtc] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -26,25 +27,33 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
+          setLoading(false);
         }
         return;
       }
 
       try {
+        console.log('[Navigation] Checking roles for user:', user.ma_ca_nhan);
+        
         // Gọi song song cả 2 API để kiểm tra vai trò BCN và BTC
         const [resBcn, resBtc] = await Promise.all([
           apiFetch('/api/me/is_bcn'),
           apiFetch('/api/me/is_btc')
         ]);
 
+        console.log('[Navigation] BCN response:', resBcn, 'BTC response:', resBtc);
+
         if (mounted) {
           setIsBcn(!!resBcn?.isBcn);
           setIsBtc(!!resBtc?.isBtc);
+          setLoading(false);
         }
       } catch (err) {
+        console.error('[Navigation] Error checking roles:', err);
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
+          setLoading(false);
         }
       }
     })();
@@ -68,7 +77,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       return items;
     }
 
-    // For lecturers, add items according to active roles.
+    // For lecturers, add items according to active roles
     if (role.includes('giang') || role.includes('giảng')) {
       if (isBcn) {
         items.push({ id: 'ban_to_chuc', label: 'Quản lý Ban tổ chức' });
@@ -77,6 +86,11 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
 
       if (isBtc) {
         items.push({ id: 'ds_rubrics', label: 'Quản lý Rubric' });
+        // sự kiện
+        items.push({ id: 'su_kien', label: 'Quản lý Sự kiện' });
+        items.push({ id: 'hoat_dong', label: 'Quản lý Hoạt Động' });
+        items.push({ id: 'hoat_dong_thi', label: 'Quản lý Hoạt Động Thi' });
+        items.push({ id: 'ban_giam_khao', label: 'Quản lý Ban Giám Khảo' });
       }
     }
 

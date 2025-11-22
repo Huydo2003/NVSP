@@ -7,7 +7,7 @@
 import { apiFetch } from './api';
 
 export async function fetchGiangVien() {
-  return apiFetch('/api/giang_vien');
+  return apiFetch('/api/giang-vien');
 }
 
 export async function fetchGiangVienById(ma_giang_vien) {
