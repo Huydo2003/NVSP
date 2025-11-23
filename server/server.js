@@ -1698,6 +1698,140 @@ app.delete('/api/ban_giam_khao/:id_hd/:ma_giang_vien', auth, async (req, res) =>
   }
 })
 
+// === hoat-dong-tham-du CRUD ===
+app.get('/api/hoat-dong-tham-du', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT hdt.id_hd_tham_du, hdt.ten_hd, hdt.id_hd, hd.tg_bat_dau, hd.tg_ket_thuc, hd.dia_diem
+      FROM hoat_dong_tham_du hdt
+      LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+      ORDER BY hd.tg_bat_dau DESC`
+    );
+    res.json(rows || []);
+  }
+  catch (err) {
+    console.error('GET /api/hoat-dong-tham-du error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/hoat-dong-tham-du', auth, async (req, res) => {
+  try {
+    const { ten_hd, id_hd } = req.body || {};
+    if (!ten_hd || !id_hd) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    await pool.execute(
+      'INSERT INTO hoat_dong_tham_du (ten_hd, id_hd) VALUES (?, ?)',
+      [ten_hd, id_hd]
+    );
+    res.status(201).json({ message: 'Đã tạo hoạt động tham dự' });
+  }
+  catch (err) {
+    console.error('POST /api/hoat-dong-tham-du error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/hoat-dong-tham-du/:id_hd_tham_du', auth, async (req, res) => {
+  try {
+    const { id_hd_tham_du } = req.params;
+    const { ten_hd, id_hd } = req.body || {};
+    if (!ten_hd || !id_hd) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    await pool.execute(
+      'UPDATE hoat_dong_tham_du SET ten_hd = ?, id_hd = ? WHERE id_hd_tham_du = ?',
+      [ten_hd, id_hd, id_hd_tham_du]
+    );
+    res.json({ message: 'Đã cập nhật hoạt động tham dự' });
+  }
+  catch (err) {
+    console.error('PUT /api/hoat-dong-tham-du/:id_hd_tham_du error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/hoat-dong-tham-du/:id_hd_tham_du', auth, async (req, res) => {
+  try {
+    const { id_hd_tham_du } = req.params;
+    await pool.execute('DELETE FROM hoat_dong_tham_du WHERE id_hd_tham_du = ?', [id_hd_tham_du]);
+    res.json({ message: 'Đã xóa hoạt động tham dự' });
+  }
+  catch (err) {
+    console.error('DELETE /api/hoat-dong-tham-du/:id_hd_tham_du error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// === hoat_dong_ho_tro CRUD ===
+app.get('/api/hoat-dong-ho-tro', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT hht.id_hd_ho_tro, hht.ten_hd, hht.loai_ho_tro, hht.id_hd, hd.tg_bat_dau, hd.tg_ket_thuc, hd.dia_diem, hht.ma_gv, tk.ho_ten
+      FROM hoat_dong_ho_tro hht
+      LEFT JOIN hoat_dong hd ON hht.id_hd = hd.id_hd
+      LEFT JOIN giang_vien gv ON hht.ma_gv = gv.ma_giang_vien
+      LEFT JOIN tai_khoan tk ON gv.ma_giang_vien = tk.ma_ca_nhan
+      ORDER BY hd.tg_bat_dau DESC`
+    );
+    res.json(rows || []);
+  }
+  catch (err) {
+    console.error('GET /api/hoat-dong-ho-tro error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.post('/api/hoat-dong-ho-tro', auth, async (req, res) => {
+  try {
+    const { ten_hd, loai_ho_tro, id_hd, ma_gv } = req.body || {};
+    if (!ten_hd || !loai_ho_tro || !id_hd || !ma_gv) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    await pool.execute(
+      'INSERT INTO hoat_dong_ho_tro (ten_hd, loai_ho_tro, id_hd, ma_gv) VALUES (?, ?, ?, ?)',
+      [ten_hd, loai_ho_tro, id_hd, ma_gv]
+    );
+    res.status(201).json({ message: 'Đã tạo hoạt động hỗ trợ' });
+  }
+  catch (err) {
+    console.error('POST /api/hoat-dong-ho-tro error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.put('/api/hoat-dong-ho-tro/:id_hd_ho_tro', auth, async (req, res) => {
+  try {
+    const { id_hd_ho_tro } = req.params;
+    const { ten_hd, loai_ho_tro, id_hd, ma_gv } = req.body || {};
+    if (!ten_hd || !loai_ho_tro || !id_hd || !ma_gv) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    await pool.execute(
+      'UPDATE hoat_dong_ho_tro SET ten_hd = ?, loai_ho_tro = ?, id_hd = ?, ma_gv = ? WHERE id_hd_ho_tro = ?',
+      [ten_hd, loai_ho_tro, id_hd, ma_gv, id_hd_ho_tro]
+    );
+    res.json({ message: 'Đã cập nhật hoạt động hỗ trợ' });
+  }
+  catch (err) {
+    console.error('PUT /api/hoat-dong-ho-tro/:id_hd_ho_tro error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+app.delete('/api/hoat-dong-ho-tro/:id_hd_ho_tro', auth, async (req, res) => {
+  try {
+    const { id_hd_ho_tro } = req.params;
+    await pool.execute('DELETE FROM hoat_dong_ho_tro WHERE id_hd_ho_tro = ?', [id_hd_ho_tro]);
+    res.json({ message: 'Đã xóa hoạt động hỗ trợ' });
+  }
+  catch (err) {
+    console.error('DELETE /api/hoat-dong-ho-tro/:id_hd_ho_tro error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 22, 2025 at 04:04 PM
+-- Generation Time: Nov 23, 2025 at 04:16 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -39,6 +39,7 @@ CREATE TABLE `ban_giam_khao` (
 INSERT INTO `ban_giam_khao` (`id_hd`, `ma_giang_vien`) VALUES
 (1, 'GV001'),
 (1, 'GV0013'),
+(2, 'GV0012'),
 (3, 'GV0013'),
 (3, 'GV007'),
 (4, 'GV004'),
@@ -89,12 +90,12 @@ CREATE TABLE `bcn_khoa` (
 --
 
 INSERT INTO `bcn_khoa` (`ma_giang_vien`, `khoa`, `bat_dau_nk`, `ket_thuc_nk`, `trang_thai`) VALUES
-('GV001', 'Khoa Sư phạm', '2024-09-01', '2028-09-01', 1),
-('GV002', 'Khoa Tâm lý', '2024-09-01', '2028-09-01', 1),
+('GV001', 'Khoa Toán Học', '2024-09-01', '2028-09-01', 1),
+('GV002', 'Khoa Vật Lý', '2024-09-01', '2028-09-01', 1),
 ('GV003', 'Khoa Ngoại ngữ', '2023-09-01', '2027-09-01', 1),
-('GV004', 'Khoa Toán', '2024-09-01', '2028-09-01', 1),
+('GV004', 'Khoa Toán Học', '2024-09-01', '2028-09-01', 1),
 ('GV005', 'Khoa Sinh học', '2023-09-01', '2027-09-01', 1),
-('GV006', 'Khoa mới', '2025-11-14', '2025-11-21', 1);
+('GV006', 'Khoa Sinh Học', '2025-11-14', '2025-11-21', 1);
 
 -- --------------------------------------------------------
 
@@ -176,6 +177,7 @@ INSERT INTO `chi_tiet_rubric` (`id_rubric`, `tieu_chi`, `diem_toi_da`) VALUES
 (10, 'Bố cục hồ sơ', 3.00),
 (10, 'Nội dung & minh chứng', 5.00),
 (10, 'Tính thẩm mỹ', 2.00),
+(12, '1', 2.00),
 (12, 'Ngữ pháp & từ vựng', 4.50);
 
 -- --------------------------------------------------------
@@ -280,13 +282,13 @@ CREATE TABLE `giang_vien` (
 --
 
 INSERT INTO `giang_vien` (`ma_giang_vien`, `khoa`) VALUES
-('GV001', 'Khoa Sư phạm'),
-('GV0012', 'Khoa Y'),
-('GV0013', 'Khoa Xây dựng'),
-('GV002', 'Khoa Tâm lý'),
+('GV001', 'Khoa Văn học'),
+('GV0012', 'Khoa Thể dục'),
+('GV0013', 'Khoa Lý'),
+('GV002', 'Khoa Toán'),
 ('GV003', 'Khoa Ngoại ngữ'),
 ('GV004', 'Khoa Toán Hình'),
-('GV005', 'Khoa Sinh học'),
+('GV005', 'Khoa Văn học'),
 ('GV006', 'Khoa Văn Học'),
 ('GV007', 'Khoa Sinh học');
 
@@ -314,7 +316,8 @@ INSERT INTO `hoat_dong` (`id_hd`, `ten_hd`, `loai_hd`, `tg_bat_dau`, `tg_ket_thu
 (1, 'Lao động', 'Thi', '2025-11-22 03:00:00', '2025-11-21 17:00:00', 'Sân sau khu E', 23),
 (2, 'Tiếp sức mùa Thi', 'Tọa đàm', '2025-11-26 22:37:00', '2025-11-28 10:36:00', 'THPT XYZ', 24),
 (3, 'Hội khỏe phù đổng', 'Thi', '2025-11-15 21:53:00', '2025-11-21 21:53:00', 'Sân Thể Dục', 23),
-(4, 'Cắm trại', 'Thi', '2025-12-01 21:59:00', '2025-12-06 22:00:00', 'Khuôn viên trường', 28);
+(4, 'Cắm trại', 'Thi', '2025-12-01 21:59:00', '2025-12-06 22:00:00', 'Khuôn viên trường', 28),
+(5, 'X', 'Thi', '2025-11-14 14:14:00', '2025-11-05 14:14:00', 'x', 28);
 
 -- --------------------------------------------------------
 
@@ -330,6 +333,13 @@ CREATE TABLE `hoat_dong_ho_tro` (
   `ma_gv` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `hoat_dong_ho_tro`
+--
+
+INSERT INTO `hoat_dong_ho_tro` (`id_hd_ho_tro`, `ten_hd`, `loai_ho_tro`, `id_hd`, `ma_gv`) VALUES
+(2, 'Nước', 'Tập huấn', 4, 'GV001');
+
 -- --------------------------------------------------------
 
 --
@@ -341,6 +351,14 @@ CREATE TABLE `hoat_dong_tham_du` (
   `ten_hd` varchar(255) NOT NULL,
   `id_hd` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `hoat_dong_tham_du`
+--
+
+INSERT INTO `hoat_dong_tham_du` (`id_hd_tham_du`, `ten_hd`, `id_hd`) VALUES
+(1, 'XYZs', 2),
+(2, '1s', 4);
 
 -- --------------------------------------------------------
 
@@ -363,7 +381,8 @@ INSERT INTO `hoat_dong_thi` (`id_hd`, `id_rubric`, `hinh_thuc`, `so_luong_tv`) V
 (1, 12, 'Nhóm', 2),
 (2, 6, 'Nhóm', 8),
 (3, 6, 'Nhóm', 6),
-(4, 12, 'Nhóm', 7);
+(4, 12, 'Nhóm', 7),
+(5, 5, 'Cá nhân', 1);
 
 -- --------------------------------------------------------
 
@@ -409,11 +428,11 @@ CREATE TABLE `sinh_vien` (
 --
 
 INSERT INTO `sinh_vien` (`ma_sinh_vien`, `nien_khoa`, `lop`, `nganh`, `khoa`) VALUES
-('SV001', '2021', 'K61', 'CNTT', 'CNTT'),
-('SV004', '2022', 'K62', 'Math', 'Math'),
-('SV005', '2021', 'K61', 'CNTT', 'CNTT'),
-('SV10001', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Sư phạm'),
-('SV10002', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Sư phạm'),
+('SV001', '2021', 'K61', 'Toán Học', 'Khoa Toán'),
+('SV004', '2022', 'K62', 'Toán Học', 'Khoa Toán'),
+('SV005', '2021', 'K61', 'Vật lý điện tử', 'Khoa Lý'),
+('SV10001', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Văn Học'),
+('SV10002', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Toán'),
 ('SV10003', 'K55', 'K55B', 'Sư phạm Anh', 'Khoa Ngoại ngữ'),
 ('SV10004', 'K55', 'K55C', 'Sư phạm Toán', 'Khoa Toán');
 
@@ -705,19 +724,19 @@ ALTER TABLE `ds_rubric`
 -- AUTO_INCREMENT for table `hoat_dong`
 --
 ALTER TABLE `hoat_dong`
-  MODIFY `id_hd` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_hd` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `hoat_dong_ho_tro`
 --
 ALTER TABLE `hoat_dong_ho_tro`
-  MODIFY `id_hd_ho_tro` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_hd_ho_tro` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `hoat_dong_tham_du`
 --
 ALTER TABLE `hoat_dong_tham_du`
-  MODIFY `id_hd_tham_du` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_hd_tham_du` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `su_kien`

@@ -91,6 +91,8 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         items.push({ id: 'hoat_dong', label: 'Quản lý Hoạt Động' });
         items.push({ id: 'hoat_dong_thi', label: 'Quản lý Hoạt Động Thi' });
         items.push({ id: 'ban_giam_khao', label: 'Quản lý Ban Giám Khảo' });
+        items.push({ id: 'hoat_dong_tham_du', label: 'Quản lý HĐ Tham Dự' });
+        items.push({ id: 'hoat_dong_ho_tro', label: 'Quản lý HĐ Hỗ Trợ' });
       }
     }
 
@@ -124,7 +126,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       <div className="mt-8 pt-4 border-t border-white/20">
         <button
           onClick={onLogout}
-          className="nav-item w-full text-left px-3 py-2 text-red-200 hover:text-white"
+          className="nav-item w-full text-left px-3 py-2 text-white bg-gray-800 hover:bg-black font-bold"
         >
           <span>Đăng xuất</span>
         </button>

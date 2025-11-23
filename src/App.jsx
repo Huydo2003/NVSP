@@ -26,6 +26,8 @@ import EventManagement from './components/EventManagement';
 import HoatDongManagement from './components/HoatDongManagement';
 import HoatDongThiManagement from './components/HoatDongThiManagement';
 import BanGiamKhaoManagement from './components/BanGiamKhaoManagement';
+import HoatDongThamDuManagement from './components/HoatDongThamDuManagement';
+import HoatDongHoTroManagement from './components/HoatDongHoTroManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -162,11 +164,15 @@ function App() {
         return <HoatDongThiManagement user={currentUser} />;
       case 'ban_giam_khao':
         return <BanGiamKhaoManagement />;
+      case 'hoat_dong_tham_du':
+        return <HoatDongThamDuManagement user={currentUser} />;
+      case 'hoat_dong_ho_tro':
+        return <HoatDongHoTroManagement user={currentUser} />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">
-                <p className="text-lg">Hệ Thống Quản Lý</p>
-            <p className="text-sm">Chọn một chức năng từ menu bên trái</p>
+                <p className="text-3xl">Hệ Thống Quản Lý</p>
+            <p className="text-2xl">Chọn một chức năng từ menu bên trái</p>
           </div>
         );
     }
