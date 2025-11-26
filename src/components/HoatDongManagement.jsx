@@ -334,7 +334,18 @@ export default function HoatDongManagement() {
                             <select
                                 required
                                 value={formData.id_sk}
-                                onChange={(e) => setFormData({ ...formData, id_sk: e.target.value })}
+                                onChange={(e) => {
+                                  const selectedId = e.target.value;
+                                  const selectedSuKien = suKienList.find(sk => sk.id_sk === parseInt(selectedId));
+                                  
+                                  // Kiểm tra nếu sự kiện đang đóng (trang_thai = 0)
+                                  if (selectedSuKien && selectedSuKien.trang_thai === 0) {
+                                    toast.error('Sự kiện này đang ở trạng thái Đóng, không thể tạo hoạt động');
+                                    return;
+                                  }
+                                  
+                                  setFormData({ ...formData, id_sk: selectedId });
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                             >
                                 <option value="">-- Chọn Sự kiện --</option>

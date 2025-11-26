@@ -6,8 +6,8 @@ function mapRoleFromString(roleStr) {
   if (r.includes('admin')) return 'admin';
   if (r.includes('bantochuc') || r.includes('ban to chuc') || r.includes('ban tổ chức') || r.includes('btc')) return 'btc';
   if (r.includes('canbo') || r.includes('can bo') || r.includes('cbl')) return 'cbl';
-  if (r.includes('sinh') || r.includes('sinh viên') || r.includes('sinh_vien')) return 'student';
-  if (r.includes('giamkhao') || r.includes('giám khảo') || r.includes('giam khao')) return 'judge';
+  if (r.includes('sinh') || r.includes('sinh viên') || r.includes('sinh_vien')) return 'sinhvien';
+  if (r.includes('giamkhao') || r.includes('giám khảo') || r.includes('giam khao')) return 'bangiamkhao';
   if (r.includes('giang') || r.includes('giảng')) return 'giangvien';
   return null;
 }

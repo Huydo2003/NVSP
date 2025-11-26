@@ -1832,6 +1832,352 @@ app.delete('/api/hoat-dong-ho-tro/:id_hd_ho_tro', auth, async (req, res) => {
   }
 });
 
+// ===== DANG_KY_THI CRUD (Student Registration) =====
+// Helper: Generate random 6-digit join code
+function generateJoinCode() {
+  return Math.floor(100000 + Math.random() * 900000);
+}
+
+// GET /api/dang-ky-thi - Get all registrations for current student or admin view
+app.get('/api/dang-ky-thi', auth, async (req, res) => {
+  try {
+    const role = (req.user.role || '').toLowerCase();
+    const ma_sv = req.user.ma_ca_nhan;
+
+    if (role === 'admin' || role.includes('admin')) {
+      // Admin sees all registrations
+      const [rows] = await pool.execute(
+        `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
+                dkt.hinh_thuc, dkt.ma_sv, sv.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+         FROM dang_ky_thi dkt
+         LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
+         LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+         LEFT JOIN sinh_vien sv ON dkt.ma_sv = sv.ma_sinh_vien
+         LEFT JOIN tai_khoan tk ON sv.ma_sinh_vien = tk.ma_ca_nhan
+         ORDER BY hd.tg_bat_dau DESC`
+      );
+      return res.json(rows || []);
+    }
+
+    // Students see their own registrations (either they registered individually or belong to a group)
+    const [rows] = await pool.execute(
+      `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc,
+              dkt.hinh_thuc, dkt.ma_sv, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+       FROM dang_ky_thi dkt
+       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
+       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+       WHERE dkt.ma_sv = ? OR (dkt.ten_nhom IS NOT NULL AND dkt.ten_nhom IN (
+         SELECT tvm.ten_nhom FROM thanh_vien_nhom tvm WHERE tvm.ma_sv = ?
+       ))
+       ORDER BY hd.tg_bat_dau DESC`,
+      [ma_sv, ma_sv]
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/dang-ky-thi error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// POST /api/dang-ky-thi - Register for an activity (individual or group)
+app.post('/api/dang-ky-thi', auth, async (req, res) => {
+  try {
+    const ma_sv = req.user.ma_ca_nhan;
+    const { id_hd, hinh_thuc, ten_nhom, ma_tham_gia } = req.body || {};
+
+    if (!id_hd || !hinh_thuc) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc: id_hd, hinh_thuc' });
+    }
+
+    // Validate hinh_thuc
+    if (!['Cá nhân', 'Nhóm'].includes(hinh_thuc)) {
+      return res.status(400).json({ message: 'Hình thức đăng ký không hợp lệ' });
+    }
+
+    // Check if activity exists and get configured hinh_thuc
+    const [hdtRows] = await pool.execute(
+      'SELECT id_hd, hinh_thuc FROM hoat_dong_thi WHERE id_hd = ? LIMIT 1',
+      [id_hd]
+    );
+    if (!hdtRows || hdtRows.length === 0) {
+      return res.status(404).json({ message: 'Hoạt động thi không tồn tại' });
+    }
+
+    // configured hinh_thuc available in hdtRows[0].hinh_thuc if needed
+
+    // If registering individually
+    if (hinh_thuc === 'Cá nhân') {
+      // Check if this student already registered
+      const [exist] = await pool.execute(
+        'SELECT id FROM dang_ky_thi WHERE id_hd = ? AND ma_sv = ? LIMIT 1',
+        [id_hd, ma_sv]
+      );
+      if (exist && exist.length > 0) {
+        return res.status(400).json({ message: 'Bạn đã đăng ký hoạt động này rồi' });
+      }
+
+      await pool.execute(
+        'INSERT INTO dang_ky_thi (id_hd, hinh_thuc, ma_sv, trang_thai) VALUES (?, ?, ?, ?)',
+        [id_hd, 'Cá nhân', ma_sv, 0]
+      );
+
+      return res.status(201).json({
+        message: 'Đăng ký cá nhân thành công. Chờ duyệt từ BTC.',
+        hinh_thuc: 'Cá nhân'
+      });
+    }
+
+    // If registering as group leader (creating new group)
+    if (hinh_thuc === 'Nhóm' && !ma_tham_gia) {
+      if (!ten_nhom) {
+        return res.status(400).json({ message: 'Tên nhóm không được để trống' });
+      }
+
+      // Check if group name already exists
+      const [existGroup] = await pool.execute(
+        'SELECT id FROM dang_ky_thi WHERE ten_nhom = ? AND id_hd = ? LIMIT 1',
+        [ten_nhom, id_hd]
+      );
+      if (existGroup && existGroup.length > 0) {
+        return res.status(400).json({ message: 'Tên nhóm này đã tồn tại trong hoạt động' });
+      }
+
+      // Generate random join code
+      const ma_tham_gia_new = generateJoinCode();
+
+      const [result] = await pool.execute(
+        'INSERT INTO dang_ky_thi (id_hd, hinh_thuc, ma_sv, ten_nhom, ma_tham_gia, trang_thai) VALUES (?, ?, ?, ?, ?, ?)',
+        [id_hd, 'Nhóm', ma_sv, ten_nhom, ma_tham_gia_new, 0]
+      );
+
+      // Add group leader as first member of thanh_vien_nhom
+      await pool.execute(
+        'INSERT INTO thanh_vien_nhom (ten_nhom, ma_sv) VALUES (?, ?)',
+        [ten_nhom, ma_sv]
+      );
+
+      return res.status(201).json({
+        message: 'Tạo nhóm thành công!',
+        id_dang_ky: result.insertId,
+        ten_nhom: ten_nhom,
+        ma_tham_gia: ma_tham_gia_new,
+        hinh_thuc: 'Nhóm'
+      });
+    }
+
+    // If joining existing group
+    if (hinh_thuc === 'Nhóm' && ma_tham_gia) {
+      // Find the group
+      const [groupRows] = await pool.execute(
+        'SELECT id, ma_sv, ten_nhom FROM dang_ky_thi WHERE id_hd = ? AND ma_tham_gia = ? LIMIT 1',
+        [id_hd, ma_tham_gia]
+      );
+
+      if (!groupRows || groupRows.length === 0) {
+        return res.status(404).json({ message: 'Mã tham gia không hợp lệ hoặc nhóm không tồn tại' });
+      }
+
+      const group = groupRows[0];
+
+      // Check if student already in group (match by ten_nhom)
+      const [inGroup] = await pool.execute(
+        'SELECT ma_sv FROM thanh_vien_nhom WHERE ten_nhom = ? AND ma_sv = ? LIMIT 1',
+        [group.ten_nhom, ma_sv]
+      );
+      if (inGroup && inGroup.length > 0) {
+        return res.status(400).json({ message: 'Bạn đã tham gia nhóm này rồi' });
+      }
+
+      // Add student to group members (store ten_nhom and ma_sv)
+      await pool.execute(
+        'INSERT INTO thanh_vien_nhom (ten_nhom, ma_sv) VALUES (?, ?)',
+        [group.ten_nhom, ma_sv]
+      );
+
+      return res.status(201).json({
+        message: `Bạn đã tham gia nhóm "${group.ten_nhom}" thành công`,
+        ten_nhom: group.ten_nhom,
+        ma_tham_gia: ma_tham_gia
+      });
+    }
+
+    res.status(400).json({ message: 'Yêu cầu không hợp lệ' });
+  } catch (err) {
+    console.error('POST /api/dang-ky-thi error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// GET /api/dang-ky-thi/:id - Get registration details
+app.get('/api/dang-ky-thi/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute(
+      `SELECT dkt.id, dkt.id_hd, dkt.hinh_thuc, dkt.ma_sv, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+       FROM dang_ky_thi dkt WHERE dkt.id = ? LIMIT 1`,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Đăng ký không tồn tại' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /api/dang-ky-thi/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// PUT /api/dang-ky-thi/:id - Update registration status (BTC/Admin only)
+app.put('/api/dang-ky-thi/:id', auth, async (req, res) => {
+  try {
+    const role = (req.user.role || '').toLowerCase();
+    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
+    
+    if (role !== 'admin' && !isBtc) {
+      return res.status(403).json({ message: 'Không có quyền truy cập' });
+    }
+
+    const { id } = req.params;
+    const { trang_thai } = req.body || {};
+
+    if (typeof trang_thai !== 'number' || ![0, 1, -1].includes(trang_thai)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ (0, 1, -1)' });
+    }
+
+    const [exist] = await pool.execute(
+      'SELECT id FROM dang_ky_thi WHERE id = ? LIMIT 1',
+      [id]
+    );
+    if (!exist || exist.length === 0) {
+      return res.status(404).json({ message: 'Đăng ký không tồn tại' });
+    }
+
+    await pool.execute(
+      'UPDATE dang_ky_thi SET trang_thai = ? WHERE id = ?',
+      [trang_thai, id]
+    );
+
+    res.json({ message: 'Cập nhật trạng thái thành công' });
+  } catch (err) {
+    console.error('PUT /api/dang-ky-thi/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// GET /api/dang-ky-thi/btc/all - BTC gets all registrations
+app.get('/api/dang-ky-thi/btc/all', auth, async (req, res) => {
+  try {
+    const ma_ca_nhan = req.user.ma_ca_nhan;
+    const isBtc = await isUserBtc(ma_ca_nhan);
+    
+    if (!isBtc) {
+      return res.status(403).json({ message: 'Không có quyền truy cập' });
+    }
+
+    // Get all registrations for BTC
+    const [rows] = await pool.execute(
+      `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
+              dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+       FROM dang_ky_thi dkt
+       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
+       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
+       ORDER BY hd.tg_bat_dau DESC`
+    );
+    return res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/dang-ky-thi/btc/all error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// DELETE /api/dang-ky-thi/:id - Cancel registration
+app.delete('/api/dang-ky-thi/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ma_sv = req.user.ma_ca_nhan;
+
+    // Get registration
+    const [regRows] = await pool.execute(
+      'SELECT id, ma_sv, ten_nhom FROM dang_ky_thi WHERE id = ? LIMIT 1',
+      [id]
+    );
+
+    if (!regRows || regRows.length === 0) {
+      return res.status(404).json({ message: 'Đăng ký không tồn tại' });
+    }
+
+    const reg = regRows[0];
+
+    // Check permission: only owner or member can delete
+    if (reg.ma_sv !== ma_sv) {
+      // Check if student is group member (match by ten_nhom)
+      const [member] = await pool.execute(
+        'SELECT ma_sv FROM thanh_vien_nhom WHERE ten_nhom = ? AND ma_sv = ? LIMIT 1',
+        [reg.ten_nhom, ma_sv]
+      );
+      if (!member || member.length === 0) {
+        return res.status(403).json({ message: 'Không có quyền hủy đăng ký này' });
+      }
+    }
+
+    // Delete from thanh_vien_nhom if group (remove this student from the group)
+    if (reg.ten_nhom) {
+      await pool.execute(
+        'DELETE FROM thanh_vien_nhom WHERE ten_nhom = ? AND ma_sv = ?',
+        [reg.ten_nhom, ma_sv]
+      );
+    }
+
+    // If group leader, delete entire registration and all members; else just remove member
+    if (reg.ma_sv === ma_sv) {
+      // If leader, remove all members for that group name
+      if (reg.ten_nhom) {
+        await pool.execute('DELETE FROM thanh_vien_nhom WHERE ten_nhom = ?', [reg.ten_nhom]);
+      }
+      await pool.execute('DELETE FROM dang_ky_thi WHERE id = ?', [id]);
+      res.json({ message: 'Hủy đăng ký thành công' });
+    } else {
+      res.json({ message: 'Rời khỏi nhóm thành công' });
+    }
+  } catch (err) {
+    console.error('DELETE /api/dang-ky-thi/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// GET /api/thanh-vien-nhom/:id_or_ten_nhom - Get group members by registration id or group name
+app.get('/api/thanh-vien-nhom/:id_or_ten_nhom', auth, async (req, res) => {
+  try {
+    const { id_or_ten_nhom } = req.params;
+    let ten_nhom = id_or_ten_nhom;
+
+    // If numeric id provided, lookup the registration to get the group name
+    if (/^\d+$/.test(String(id_or_ten_nhom))) {
+      const [regRows] = await pool.execute('SELECT ten_nhom FROM dang_ky_thi WHERE id = ? LIMIT 1', [id_or_ten_nhom]);
+      if (!regRows || regRows.length === 0) {
+        return res.json([]);
+      }
+      ten_nhom = regRows[0].ten_nhom;
+      if (!ten_nhom) return res.json([]);
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT tvm.ma_sv, tk.ho_ten, tk.email
+       FROM thanh_vien_nhom tvm
+       LEFT JOIN tai_khoan tk ON tvm.ma_sv = tk.ma_ca_nhan
+       WHERE tvm.ten_nhom = ?`,
+      [ten_nhom]
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/thanh-vien-nhom/:id_or_ten_nhom error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

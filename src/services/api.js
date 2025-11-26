@@ -19,8 +19,12 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    // For 404 return null instead of throwing parse error; caller should handle
-    throw { status: res.status, body: data || text };
+    // Extract server message if available, otherwise use status text or raw text
+    const serverMessage = data && data.message ? data.message : res.statusText || text || `HTTP ${res.status}`;
+    const error = new Error(serverMessage);
+    error.status = res.status;
+    error.body = data || text;
+    throw error;
   }
 
   return data;

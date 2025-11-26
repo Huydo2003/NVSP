@@ -93,7 +93,11 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         items.push({ id: 'ban_giam_khao', label: 'Quản lý Ban Giám Khảo' });
         items.push({ id: 'hoat_dong_tham_du', label: 'Quản lý HĐ Tham Dự' });
         items.push({ id: 'hoat_dong_ho_tro', label: 'Quản lý HĐ Hỗ Trợ' });
+        items.push({ id: 'dang_ky_thi_btc', label: 'Quản Lý Đăng Ký Thi' });
       }
+    }
+    if (role.includes('sinh')  || role.includes('sinh viên')) {
+      items.push({ id: 'dang_ky_thi', label: 'Đăng Ký Thi' });
     }
 
     return items;

@@ -3,13 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
-<<<<<<< HEAD
--- Generation Time: Nov 23, 2025 at 04:16 PM
-=======
--- Generation Time: Nov 23, 2025 at 08:19 AM
->>>>>>> 8839e623a717ba6ebae624338c638df3ccb2a12d
+-- Generation Time: Nov 26, 2025 at 06:05 PM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -199,6 +195,16 @@ CREATE TABLE `dang_ky_thi` (
   `ma_tham_gia` int(11) DEFAULT NULL,
   `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `dang_ky_thi`
+--
+
+INSERT INTO `dang_ky_thi` (`id`, `id_hd`, `hinh_thuc`, `ma_sv`, `ten_nhom`, `ma_tham_gia`, `trang_thai`) VALUES
+(2, 5, 'Cá nhân', 'SV001', NULL, NULL, 1),
+(3, 4, 'Nhóm', 'SV001', 'NEW', 637250, 1),
+(4, 1, 'Nhóm', 'SV005', 'NEW02', 523605, 0),
+(8, 5, 'Cá nhân', 'SV005', NULL, NULL, -1);
 
 -- --------------------------------------------------------
 
@@ -463,7 +469,8 @@ INSERT INTO `su_kien` (`id_sk`, `ten_sk`, `nam_hoc`, `ma_btc`, `trang_thai`) VAL
 (24, 'Tình nguyện mùa thi THPT', '2025', 'GV0013', 1),
 (25, 'Tình nguyện mùa thi THPT', '2024', 'GV0013', 1),
 (26, 'Tình nguyện mùa thi THPT', '2023', 'GV0013', 1),
-(28, 'Hội Thao Xuân 2025', '2025', 'GV0013', 1);
+(28, 'Hội Thao Xuân 2025', '2025', 'GV0013', 1),
+(29, 'test', '2025', 'GV0013', 0);
 
 -- --------------------------------------------------------
 
@@ -500,10 +507,10 @@ INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `e
 (23, 'SV10006', 'Nguyễn Văn B', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nvb@hnue.edu.vn', '2025-11-12 17:28:55', '2025-11-12 17:28:55'),
 (25, 'GV006', 'Lê Thị Thu Hoa', 'f951b7cfbe11e84ed53c134c10ac41f1', 'Giảng viên', 'lethithuhoa@hnue.edu.vn', '2025-11-12 18:02:31', '2025-11-12 19:44:31'),
 (26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-12 18:45:33', '2025-11-12 18:45:33'),
-(43, 'SV005', 'Nguyễn Văn A', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
+(43, 'SV005', 'Nguyễn Văn A', 'f8b83650c5aa44094d5907c0cbfb9e91', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-26 15:50:45'),
 (44, 'GV0012', 'Trần Thị B', 'df030274605ce6de120181c4410ea67b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-15 03:49:44'),
 (45, 'GV0013', 'Phạm Văn D', '6082b2fd4baf21f38e38fb4a12721f35', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 07:50:35'),
-(46, 'SV001', 'Trùng Mã', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
+(46, 'SV001', 'Sinh Viên 1', 'f7f8074c9ac335297b78dbbec0426822', 'Sinh viên', 'dup@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-26 14:59:46'),
 (47, 'ADMIN21', 'Quản Trị Viên', 'c4ca4238a0b923820dcc509a6f75849b', 'Admin', 'admin002@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 02:11:09'),
 (48, 'SV004', 'Nguyễn Văn G', '4a9585c67cfded7ef30bf2281049dbce', 'Sinh viên', 'nvg@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-15 03:33:14');
 
@@ -517,6 +524,15 @@ CREATE TABLE `thanh_vien_nhom` (
   `ten_nhom` varchar(50) NOT NULL,
   `ma_sv` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `thanh_vien_nhom`
+--
+
+INSERT INTO `thanh_vien_nhom` (`ten_nhom`, `ma_sv`) VALUES
+('NEW', 'SV004'),
+('NEW', 'SV005'),
+('NEW02', 'SV005');
 
 -- --------------------------------------------------------
 
@@ -704,7 +720,7 @@ ALTER TABLE `cham_diem`
 -- AUTO_INCREMENT for table `dang_ky_thi`
 --
 ALTER TABLE `dang_ky_thi`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `diem_danh`
@@ -746,7 +762,7 @@ ALTER TABLE `hoat_dong_tham_du`
 -- AUTO_INCREMENT for table `su_kien`
 --
 ALTER TABLE `su_kien`
-  MODIFY `id_sk` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id_sk` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `tai_khoan`
