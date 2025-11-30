@@ -17,7 +17,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
   const { config } = state;
   const [isBcn, setIsBcn] = useState(false);
   const [isBtc, setIsBtc] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isCbl, setIsCbl] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -27,7 +27,6 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
-          setLoading(false);
         }
         return;
       }
@@ -35,25 +34,25 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       try {
         console.log('[Navigation] Checking roles for user:', user.ma_ca_nhan);
         
-        // Gọi song song cả 2 API để kiểm tra vai trò BCN và BTC
-        const [resBcn, resBtc] = await Promise.all([
+        // Gọi song song cả 3 API để kiểm tra vai trò BCN, BTC và CBL
+        const [resBcn, resBtc, resCbl] = await Promise.all([
           apiFetch('/api/me/is_bcn'),
-          apiFetch('/api/me/is_btc')
+          apiFetch('/api/me/is_btc'),
+          apiFetch('/api/me/is_cbl')
         ]);
 
-        console.log('[Navigation] BCN response:', resBcn, 'BTC response:', resBtc);
+        console.log('[Navigation] BCN response:', resBcn, 'BTC response:', resBtc, 'CBL response:', resCbl);
 
         if (mounted) {
           setIsBcn(!!resBcn?.isBcn);
           setIsBtc(!!resBtc?.isBtc);
-          setLoading(false);
+          setIsCbl(!!resCbl?.isCbl);
         }
       } catch (err) {
         console.error('[Navigation] Error checking roles:', err);
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
-          setLoading(false);
         }
       }
     })();
@@ -93,11 +92,17 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         items.push({ id: 'ban_giam_khao', label: 'Quản lý Ban Giám Khảo' });
         items.push({ id: 'hoat_dong_tham_du', label: 'Quản lý HĐ Tham Dự' });
         items.push({ id: 'hoat_dong_ho_tro', label: 'Quản lý HĐ Hỗ Trợ' });
-        items.push({ id: 'dang_ky_thi_btc', label: 'Quản Lý Đăng Ký Thi' });
       }
     }
     if (role.includes('sinh')  || role.includes('sinh viên')) {
-      items.push({ id: 'dang_ky_thi', label: 'Đăng Ký Thi' });
+      // If the student is a class representative (CBL), show the registration management tabs
+      if (isCbl) {
+        items.push({ id: 'dang_ky_thi_btc', label: 'Quản Lý Đăng Ký Thi' });
+        items.push({ id: 'dki_tham_du_approval', label: 'Quản Lý Đăng Ký Tham Dự' });
+      } else {
+        items.push({ id: 'dang_ky_thi', label: 'Đăng Ký Thi' });
+        items.push({ id: 'dki_tham_du', label: 'Đăng Ký Tham Dự' });
+      }
     }
 
     return items;

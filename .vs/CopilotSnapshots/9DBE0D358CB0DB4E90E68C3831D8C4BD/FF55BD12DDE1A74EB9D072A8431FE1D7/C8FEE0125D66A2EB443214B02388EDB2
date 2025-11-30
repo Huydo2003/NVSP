@@ -1,4 +1,4 @@
-/* eslint-env node */
+﻿/* eslint-env node */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -1539,7 +1539,7 @@ app.post('/api/hoat_dong', auth, async (req, res) => {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
     }
     // Check duplicate ten_hd within the same event (id_sk)
-    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_sk = ? AND ten_hd = ? LIMIT 1', [id_sk, ten_hd]);
+    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_hd = ? AND ten_hd = ? LIMIT 1', [id_sk, ten_hd]);
     if (exist && exist.length > 0) {
       return res.status(400).json({ message: `Tên hoạt động (${ten_hd}) đã tồn tại trong sự kiện này` });
     }
@@ -1563,7 +1563,7 @@ app.put('/api/hoat_dong/:id_hd', auth, async (req, res) => {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
     }
     // Check duplicate ten_hd within the same event (id_sk)
-    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_sk = ? AND ten_hd = ? AND id_hd != ? LIMIT 1', [id_sk, ten_hd, id_hd]);
+    const [exist] = await pool.execute('SELECT ten_hd FROM hoat_dong WHERE id_hd = ? AND ten_hd = ? AND id_hd != ? LIMIT 1', [id_sk, ten_hd, id_hd]);
     if (exist && exist.length > 0) {
       return res.status(400).json({ message: `Tên hoạt động (${ten_hd}) đã tồn tại trong sự kiện này` });
     }
@@ -1896,9 +1896,13 @@ app.post('/api/dki-tham-du', auth, async (req, res) => {
     const [exist] = await pool.execute('SELECT ma_sv FROM dki_tham_du WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
     if (exist && exist.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký tham dự hoạt động này' });
 
-    // Cross-check: if student already registered for exam (dang_ky_thi) for same id_hd, block
-    const [conflict] = await pool.execute('SELECT ma_sv FROM dang_ky_thi WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
-    if (conflict && conflict.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký thi cho hoạt động này, không thể đăng ký tham dự' });
+    // Cross-check: if student already registered for exam (dang_ky_thi) for the same parent hoat_dong, block
+    // Note: dki_tham_du.id_hd stores hoat_dong_tham_du.id_hd_tham_du; we must map to hoat_dong.id_hd
+    const parentHoatDongId = hdtRows[0].id_hd;
+    if (parentHoatDongId) {
+      const [conflict] = await pool.execute('SELECT ma_sv FROM dang_ky_thi WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [parentHoatDongId, ma_sv]);
+      if (conflict && conflict.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký thi cho hoạt động này, không thể đăng ký tham dự' });
+    }
 
     await pool.execute('INSERT INTO dki_tham_du (ma_sv, id_hd, trang_thai) VALUES (?, ?, ?)', [ma_sv, id_hd, 0]);
     res.status(201).json({ message: 'Đã đăng ký tham dự. Chờ duyệt từ CBL.' });
@@ -2014,12 +2018,12 @@ app.get('/api/dang-ky-thi', auth, async (req, res) => {
       // Admin sees all registrations
       const [rows] = await pool.execute(
         `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-                dkt.hinh_thuc, dkt.ma_sv, sv.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+                dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
          FROM dang_ky_thi dkt
          LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
          LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+         LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
          LEFT JOIN sinh_vien sv ON dkt.ma_sv = sv.ma_sinh_vien
-         LEFT JOIN tai_khoan tk ON sv.ma_sinh_vien = tk.ma_ca_nhan
          ORDER BY hd.tg_bat_dau DESC`
       );
       return res.json(rows || []);
@@ -2069,11 +2073,12 @@ app.post('/api/dang-ky-thi', auth, async (req, res) => {
       return res.status(404).json({ message: 'Hoạt động thi không tồn tại' });
     }
 
-    // configured hinh_thuc available in hdtRows[0].hinh_thuc if needed
-
-    // Cross-check: if student already registered in participation (dki_tham_du) for same activity id, block
+    // Cross-check: if student already registered in participation (dki_tham_du) for the same parent hoat_dong, block
+    // Note: dang_ky_thi.id_hd refers to hoat_dong.id_hd; dki_tham_du.id_hd stores hoat_dong_tham_du.id_hd_tham_du
     const [conflictDki] = await pool.execute(
-      'SELECT ma_sv FROM dki_tham_du WHERE id_hd = ? AND ma_sv = ? LIMIT 1',
+      `SELECT dt.ma_sv FROM dki_tham_du dt
+       JOIN hoat_dong_tham_du hdt ON dt.id_hd = hdt.id_hd_tham_du
+       WHERE hdt.id_hd = ? AND dt.ma_sv = ? LIMIT 1`,
       [id_hd, ma_sv]
     );
     if (conflictDki && conflictDki.length > 0) {
@@ -2245,8 +2250,7 @@ app.get('/api/dang-ky-thi/btc/all', auth, async (req, res) => {
     if (isBtc) {
       const [rows] = await pool.execute(
         `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-                dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai,
-                sv.lop
+                dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
          FROM dang_ky_thi dkt
          LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
          LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
@@ -2369,7 +2373,6 @@ app.get('/api/thanh-vien-nhom/:id_or_ten_nhom', auth, async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

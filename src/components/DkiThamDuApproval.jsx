@@ -1,8 +1,8 @@
 /**
- * DangKyThiApproval.jsx - BTC/Admin approval for exam/activity registrations
+ * DkiThamDuApproval.jsx - CBL/Admin approval for participation registrations
  * Chức năng:
- * - Xem danh sách hoạt động thi
- * - Xem danh sách các đơn đăng ký (nhóm/cá nhân)
+ * - Xem danh sách hoạt động tham dự
+ * - Xem danh sách các đơn đăng ký tham dự (chỉ cá nhân)
  * - Duyệt/Từ chối các đơn đăng ký
  */
 
@@ -11,16 +11,15 @@ import Modal from './Modal';
 import toast from 'react-hot-toast';
 import { useApp } from '../hooks/useApp';
 import { apiFetch } from '../services/api';
-import { fetchHoatDongThi } from '../services/hoat-dong-thi';
+import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
 import { fetchHoatDong } from '../services/hoat-dong';
 import {
-  fetchAllDangKyThiBtc,
-  updateDangKyThiStatus,
-  fetchThanhVienNhom
-} from '../services/dang-ky-thi';
+  fetchDkiThamDuClass,
+  updateDkiThamDuStatus
+} from '../services/dki-tham-du';
 
-export default function DangKyThiApproval() {
-  const [hdtList, setHdtList] = useState([]);
+export default function DkiThamDuApproval() {
+  const [hdtdList, setHdtdList] = useState([]);
   const [hdList, setHdList] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [page, setPage] = useState(1);
@@ -31,10 +30,6 @@ export default function DangKyThiApproval() {
   const [activityRegs, setActivityRegs] = useState([]);
   const [regLoading, setRegLoading] = useState(false);
 
-  const [showMembersModal, setShowMembersModal] = useState(false);
-  const [selectedReg, setSelectedReg] = useState(null);
-  const [groupMembers, setGroupMembers] = useState([]);
-
   const [cblLop, setCblLop] = useState(null);
 
   const { state } = useApp();
@@ -42,13 +37,13 @@ export default function DangKyThiApproval() {
 
   const refreshData = async () => {
     try {
-      const [hdtData, hdData, regData, cblData] = await Promise.all([
-        fetchHoatDongThi(),
+      const [hdtdData, hdData, regData, cblData] = await Promise.all([
+        fetchHoatDongThamDu(),
         fetchHoatDong(),
-        fetchAllDangKyThiBtc(),
+        fetchDkiThamDuClass(),
         apiFetch('/api/me/is_cbl')
       ]);
-      setHdtList(Array.isArray(hdtData) ? hdtData : []);
+      setHdtdList(Array.isArray(hdtdData) ? hdtdData : []);
       setHdList(Array.isArray(hdData) ? hdData : []);
       setRegistrations(Array.isArray(regData) ? regData : []);
       if (cblData?.isCbl && cblData?.lop) {
@@ -76,18 +71,7 @@ export default function DangKyThiApproval() {
   // Helper: Kiểm tra sinh viên có cùng lớp với CBL không
   const isStudentInCblClass = (reg) => {
     if (!cblLop) return true; // Nếu không phải CBL, cho phép tất cả
-    
-    // Với đăng ký cá nhân
-    if (reg.hinh_thuc === 'Cá nhân') {
-      return reg.lop === cblLop;
-    }
-    
-    // Với đăng ký nhóm, kiểm tra lop_thanh_vien (lớp của thành viên nhóm)
-    if (reg.hinh_thuc === 'Nhóm') {
-      return reg.lop_thanh_vien === cblLop || reg.lop === cblLop;
-    }
-    
-    return false;
+    return reg.lop === cblLop;
   };
 
   // Helper: Sắp xếp danh sách đăng ký - cùng lớp lên trên, khác lớp xuống dưới
@@ -105,15 +89,15 @@ export default function DangKyThiApproval() {
     });
   };
 
-  const handleViewRegistrations = async (hdt) => {
+  const handleViewRegistrations = async (hdtd) => {
     try {
       setRegLoading(true);
       // Get registrations for this activity
-      let regs = registrations.filter(r => r.id_hd === hdt.id_hd);
+      let regs = registrations.filter(r => r.id_hd === hdtd.id_hd_tham_du);
       // Sắp xếp: cùng lớp lên trên, khác lớp xuống dưới
       regs = sortRegsByClass(regs);
       setActivityRegs(regs);
-      setSelectedActivity(hdt);
+      setSelectedActivity(hdtd);
       setShowRegListModal(true);
     } catch (err) {
       console.error('Error viewing registrations:', err);
@@ -123,44 +107,14 @@ export default function DangKyThiApproval() {
     }
   };
 
-  const handleViewGroupMembers = async (reg) => {
-    if (reg.hinh_thuc !== 'Nhóm') {
-      toast.error('Chỉ có thể xem thành viên của đơn nhóm');
-      return;
-    }
-
-    try {
-      const members = await fetchThanhVienNhom(reg.id);
-      setGroupMembers(Array.isArray(members) ? members : []);
-      setSelectedReg(reg);
-      setShowMembersModal(true);
-    } catch (err) {
-      console.error('Error fetching group members:', err);
-      toast.error('Không thể tải danh sách thành viên');
-    }
-  };
-
   const handleApprove = async (reg) => {
     try {
-      // Nếu là nhóm, kiểm tra thành viên đủ số lượng
-      if (reg.hinh_thuc === 'Nhóm') {
-        const members = await fetchThanhVienNhom(reg.id);
-        const memberCount = Array.isArray(members) ? members.length : 0;
-        const activity = hdtList.find(h => h.id_hd === reg.id_hd);
-        const requiredCount = activity?.so_luong_tv || 0;
-        
-        if (memberCount < requiredCount) {
-          toast.error(`Nhóm chưa đủ thành viên (${memberCount}/${requiredCount})`);
-          return;
-        }
-      }
-
-      await updateDangKyThiStatus(reg.id, 1); // 1 = approved
+      await updateDkiThamDuStatus(reg.ma_sv, reg.id_hd, 1); // 1 = approved
       toast.success('Duyệt thành công');
-      const regData = await fetchAllDangKyThiBtc();
+      const regData = await fetchDkiThamDuClass();
       const newRegs = Array.isArray(regData) ? regData : [];
       setRegistrations(newRegs);
-      const newActivityRegs = newRegs.filter(r => r.id_hd === selectedActivity.id_hd);
+      const newActivityRegs = newRegs.filter(r => r.id_hd === selectedActivity.id_hd_tham_du);
       setActivityRegs(newActivityRegs);
     } catch (err) {
       toast.error(err?.message || 'Lỗi khi duyệt');
@@ -169,20 +123,20 @@ export default function DangKyThiApproval() {
 
   const handleReject = async (reg) => {
     try {
-      await updateDangKyThiStatus(reg.id, -1); // -1 = rejected
+      await updateDkiThamDuStatus(reg.ma_sv, reg.id_hd, -1); // -1 = rejected
       toast.success('Từ chối thành công');
-      const regData = await fetchAllDangKyThiBtc();
+      const regData = await fetchDkiThamDuClass();
       const newRegs = Array.isArray(regData) ? regData : [];
       setRegistrations(newRegs);
-      const newActivityRegs = newRegs.filter(r => r.id_hd === selectedActivity.id_hd);
+      const newActivityRegs = newRegs.filter(r => r.id_hd === selectedActivity.id_hd_tham_du);
       setActivityRegs(newActivityRegs);
     } catch (err) {
       toast.error(err?.message || 'Lỗi khi từ chối');
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(hdtList.length / itemsPerPage));
-  const displayedList = hdtList.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(hdtdList.length / itemsPerPage));
+  const displayedList = hdtdList.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   const getTrangThaiColor = (trang_thai) => {
     if (trang_thai === 1) return 'text-green-600 bg-green-50';
@@ -196,37 +150,36 @@ export default function DangKyThiApproval() {
     return 'Chưa duyệt';
   };
 
-  const getRegCountByStatus = (hdt, status) => {
-    return registrations.filter(r => r.id_hd === hdt.id_hd && r.trang_thai === status).length;
+  const getRegCountByStatus = (hdtd, status) => {
+    return registrations.filter(r => r.id_hd === hdtd.id_hd_tham_du && r.trang_thai === status).length;
   };
 
   return (
     <div className="space-y-6 fade-in">
 
       <div>
-        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Duyệt Đăng Ký Hoạt Động Thi</h1>
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Duyệt Đăng Ký Tham Dự</h1>
       </div>
 
-      {/* Danh sách hoạt động thi - Card grid (3 columns) */}
+      {/* Danh sách hoạt động tham dự - Card grid (3 columns) */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6">
-          {hdtList.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Chưa có hoạt động thi nào</div>
+          {hdtdList.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Chưa có hoạt động tham dự nào</div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              {displayedList.map((hdt) => {
-                const hd = getHoatDongInfo(hdt.id_hd);
-                const totalRegs = registrations.filter(r => r.id_hd === hdt.id_hd).length;
-                const approvedCount = getRegCountByStatus(hdt, 1);
-                const rejectedCount = getRegCountByStatus(hdt, -1);
-                const pendingCount = getRegCountByStatus(hdt, 0);
+              {displayedList.map((hdtd) => {
+                const hd = getHoatDongInfo(hdtd.id_hd);
+                const totalRegs = registrations.filter(r => r.id_hd === hdtd.id_hd_tham_du).length;
+                const approvedCount = getRegCountByStatus(hdtd, 1);
+                const rejectedCount = getRegCountByStatus(hdtd, -1);
+                const pendingCount = getRegCountByStatus(hdtd, 0);
 
                 return (
-                  <div key={hdt.id_hd} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
+                  <div key={hdtd.id_hd_tham_du} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{hd.ten_hd}</h3>
-                      <div className="text-xs text-gray-500 mb-2">ID: {hdt.id_hd}</div>
-                      <div className="text-sm text-gray-600 mb-2">Hình thức: {hdt.hinh_thuc || 'N/A'}</div>
+                      <h3 className="text-lg font-semibold text-gray-900">{hdtd.ten_hd}</h3>
+                      <div className="text-xs text-gray-500 mb-2">ID: {hdtd.id_hd_tham_du}</div>
                       <div className="text-sm text-gray-500 mb-3">Thời gian: {hd.tg_bat_dau ? new Date(hd.tg_bat_dau).toLocaleString('vi-VN') : '—'}</div>
 
                       {/* Statistics */}
@@ -248,7 +201,7 @@ export default function DangKyThiApproval() {
 
                     <div className="mt-4 flex justify-end">
                       <button
-                        onClick={() => handleViewRegistrations(hdt)}
+                        onClick={() => handleViewRegistrations(hdtd)}
                         className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
                         Danh sách ({totalRegs})
@@ -283,7 +236,7 @@ export default function DangKyThiApproval() {
       <Modal
         isOpen={showRegListModal}
         onClose={() => setShowRegListModal(false)}
-        title={`Danh sách đăng ký: ${getHoatDongInfo(selectedActivity?.id_hd)?.ten_hd || ''}`}
+        title={`Danh sách đăng ký tham dự: ${getHoatDongInfo(selectedActivity?.id_hd)?.ten_hd || ''}`}
         size="lg"
       >
         <div className="space-y-4">
@@ -296,29 +249,17 @@ export default function DangKyThiApproval() {
               {activityRegs.map((reg) => {
                 const isInClass = isStudentInCblClass(reg);
                 return (
-                  <div key={reg.id} className={`bg-white border rounded p-4 flex items-center justify-between hover:bg-gray-50 ${!isInClass ? 'opacity-60' : ''}`}>
+                  <div key={`${reg.ma_sv}-${reg.id_hd}`} className={`bg-white border rounded p-4 flex items-center justify-between hover:bg-gray-50 ${!isInClass ? 'opacity-60' : ''}`}>
                     <div className="flex-1">
-                      {reg.hinh_thuc === 'Nhóm' ? (
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">
-                            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2">Nhóm</span>
-                            {reg.ten_nhom}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            Mã tham gia: {reg.ma_tham_gia}
-                          </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded mr-2">Cá nhân</span>
+                          {reg.ho_ten || reg.ma_sv}
                         </div>
-                      ) : (
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">
-                            <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded mr-2">Cá nhân</span>
-                            {reg.ho_ten || reg.ma_sv}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            MSSV: {reg.ma_sv}
-                          </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          MSSV: {reg.ma_sv}
                         </div>
-                      )}
+                      </div>
                       {!isInClass && (
                         <div className="text-xs text-red-600 mt-1 font-medium">
                           ⚠ Không cùng lớp - Không thể duyệt
@@ -330,15 +271,6 @@ export default function DangKyThiApproval() {
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${getTrangThaiColor(reg.trang_thai)}`}>
                         {getTrangThaiText(reg.trang_thai)}
                       </span>
-
-                      {reg.hinh_thuc === 'Nhóm' && (
-                        <button
-                          onClick={() => handleViewGroupMembers(reg)}
-                          className="px-2 py-1 text-xs bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100"
-                        >
-                          Thành viên
-                        </button>
-                      )}
 
                       {reg.trang_thai === 0 && (
                         <>
@@ -380,45 +312,6 @@ export default function DangKyThiApproval() {
             >
               Đóng
             </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Group Members Modal */}
-      <Modal
-        isOpen={showMembersModal}
-        onClose={() => setShowMembersModal(false)}
-        title={`Thành viên nhóm: ${selectedReg?.ten_nhom || ''}`}
-        size="md"
-      >
-        <div className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded border border-blue-200">
-            <p className="text-sm text-blue-800">
-              <strong>Mã tham gia:</strong> {selectedReg?.ma_tham_gia}
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Danh sách thành viên ({groupMembers.length})</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {groupMembers.length > 0 ? (
-                groupMembers.map((member) => (
-                  <div key={member.ma_sv} className="flex items-center justify-between bg-gray-50 p-3 rounded border">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{member.ho_ten}</div>
-                      <div className="text-xs text-gray-500">{member.ma_sv}</div>
-                    </div>
-                    {member.email && <div className="text-xs text-gray-500">{member.email}</div>}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">Chưa có thành viên</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button onClick={() => setShowMembersModal(false)} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Đóng</button>
           </div>
         </div>
       </Modal>

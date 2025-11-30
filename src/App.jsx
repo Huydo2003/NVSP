@@ -30,6 +30,8 @@ import HoatDongThamDuManagement from './components/HoatDongThamDuManagement';
 import HoatDongHoTroManagement from './components/HoatDongHoTroManagement';
 import DangKyThiManagement from './components/DangKyThiManagement';
 import DangKyThiApproval from './components/DangKyThiApproval';
+import DkiThamDuApproval from './components/DkiThamDuApproval';
+import DkiThamDuRegister from './components/DkiThamDuRegister';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -172,8 +174,12 @@ function App() {
         return <HoatDongHoTroManagement user={currentUser} />;
       case 'dang_ky_thi':
         return <DangKyThiManagement user={currentUser} />;
+      case 'dki_tham_du':
+        return <DkiThamDuRegister user={currentUser} />;
       case 'dang_ky_thi_btc':
         return <DangKyThiApproval />;
+      case 'dki_tham_du_approval':
+        return <DkiThamDuApproval />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">
