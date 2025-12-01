@@ -5,15 +5,18 @@
  * - Đăng ký cá nhân hoặc tạo/tham gia nhóm
  * - Xem trạng thái đăng ký
  * - Chỉ cho phép sinh viên truy cập
+ * - CHẶN đăng ký THI nếu đã đăng ký THAM DỰ cho cùng hoạt động (Đã fix logic so sánh ID)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Bổ sung useMemo
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useApp } from '../hooks/useApp';
 import { fetchHoatDongThi } from '../services/hoat-dong-thi';
 import { fetchHoatDong } from '../services/hoat-dong';
+import { fetchDkiThamDu } from '../services/dki-tham-du';
+import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
 import {
     fetchDangKyThi,
     registerIndividual,
@@ -27,12 +30,14 @@ export default function DangKyThiManagement({ user }) {
     const [hdtList, setHdtList] = useState([]);
     const [hdList, setHdList] = useState([]);
     const [registrations, setRegistrations] = useState([]);
+    const [dkiThamDuRegs, setDkiThamDuRegs] = useState([]);
+    const [hdtdList, setHdtdList] = useState([]);
     const [page, setPage] = useState(1);
     const itemsPerPage = 10;
 
     const [showRegModal, setShowRegModal] = useState(false);
     const [selectedActivity, setSelectedActivity] = useState(null);
-    const [regType, setRegType] = useState('individual'); // 'individual', 'createGroup', 'joinGroup'
+    const [regType, setRegType] = useState(''); // **Khởi tạo là rỗng để bắt người dùng chọn**
     const [groupName, setGroupName] = useState('');
     const [joinCode, setJoinCode] = useState('');
     const [loading, setLoading] = useState(false);
@@ -52,15 +57,19 @@ export default function DangKyThiManagement({ user }) {
 
     const refreshData = async () => {
         try {
-            const [hdtData, hdData, regData] = await Promise.all([
+            const [hdtData, hdData, regData, dkiData, hdtdData] = await Promise.all([
                 fetchHoatDongThi(),
                 fetchHoatDong(),
-                fetchDangKyThi()
+                fetchDangKyThi(),
+                fetchDkiThamDu(),
+                fetchHoatDongThamDu()
             ]);
             setHdtList(Array.isArray(hdtData) ? hdtData : []);
             setHdList(Array.isArray(hdData) ? hdData : []);
             setRegistrations(Array.isArray(regData) ? regData : []);
-            // Populate groupCounts for any group registrations the user is part of
+            setDkiThamDuRegs(Array.isArray(dkiData) ? dkiData : []);
+            setHdtdList(Array.isArray(hdtdData) ? hdtdData : []);
+
             try {
                 const groupRegs = Array.isArray(regData) ? regData.filter(r => r.hinh_thuc === 'Nhóm') : [];
                 if (groupRegs.length > 0) {
@@ -101,10 +110,48 @@ export default function DangKyThiManagement({ user }) {
         return hdList.find(h => h.id_hd === id_hd) || {};
     };
 
+    // Helper: Kiểm tra xem sinh viên đã đăng ký tham dự cho cùng hoạt động chung chưa
+    const hasConflictingDkiThamDu = (id_hd_hoat_dong_chung) => {
+        return dkiThamDuRegs.some(dkiReg => {
+            const id_hd_tham_du = dkiReg.id_hd;
+            const hdtdInfo = hdtdList.find(hdtd => hdtd.id_hd_tham_du === id_hd_tham_du);
+
+            if (hdtdInfo) {
+                if (hdtdInfo.id_hd === id_hd_hoat_dong_chung) {
+                    return dkiReg.trang_thai !== -1;
+                }
+            }
+            return false;
+        });
+    };
+
     const handleRegister = async (e) => {
         e?.preventDefault();
         if (!selectedActivity) {
             toast.error('Vui lòng chọn hoạt động');
+            return;
+        }
+
+        // Check for conflict with dki_tham_du
+        if (hasConflictingDkiThamDu(selectedActivity.id_hd)) {
+            toast.error('Bạn đã đăng ký tham dự cho hoạt động này. Không thể đăng ký thi.');
+            return;
+        }
+        
+        // **Thêm logic kiểm tra hình thức đăng ký đã chọn và thông tin nhập**
+        if (selectedActivity.hinh_thuc === 'Nhóm' && regType === '') {
+            // Trường hợp này đã được xử lý bằng nút disabled, nhưng thêm kiểm tra để an toàn.
+            toast.error('Vui lòng chọn hình thức đăng ký (Tạo nhóm hoặc Tham gia nhóm)');
+            return;
+        }
+        
+        if (regType === 'createGroup' && !groupName.trim()) {
+            toast.error('Vui lòng nhập tên nhóm');
+            return;
+        }
+
+        if (regType === 'joinGroup' && !joinCode.trim()) {
+            toast.error('Vui lòng nhập mã tham gia');
             return;
         }
 
@@ -115,27 +162,21 @@ export default function DangKyThiManagement({ user }) {
                 result = await registerIndividual(selectedActivity.id_hd);
                 toast.success('Đăng ký cá nhân thành công! Chờ duyệt từ BTC.');
             } else if (regType === 'createGroup') {
-                if (!groupName.trim()) {
-                    toast.error('Vui lòng nhập tên nhóm');
-                    setLoading(false);
-                    return;
-                }
                 result = await createGroupRegistration(selectedActivity.id_hd, groupName);
                 toast.success(`Tạo nhóm thành công! Mã tham gia: ${result.ma_tham_gia}`);
             } else if (regType === 'joinGroup') {
-                if (!joinCode.trim()) {
-                    toast.error('Vui lòng nhập mã tham gia');
-                    setLoading(false);
-                    return;
-                }
                 result = await joinGroup(selectedActivity.id_hd, parseInt(joinCode));
                 toast.success(`Tham gia nhóm "${result.ten_nhom}" thành công!`);
+            } else {
+                // Nếu regType là rỗng (chưa chọn)
+                toast.error('Vui lòng chọn hình thức đăng ký.');
+                return;
             }
 
             setShowRegModal(false);
             setGroupName('');
             setJoinCode('');
-            setRegType('individual');
+            setRegType(''); // **Reset về rỗng**
             await refreshData();
         } catch (err) {
             console.error('Register error:', err);
@@ -191,6 +232,32 @@ export default function DangKyThiManagement({ user }) {
         return 'Chưa duyệt';
     };
 
+    // **Biến tính toán để kiểm soát nút Đăng ký trong Modal**
+    const isRegisterButtonDisabled = useMemo(() => {
+        if (loading) return true;
+        if (!selectedActivity) return true;
+
+        if (regType === 'individual') {
+            return false;
+        }
+
+        if (regType === 'createGroup') {
+            return !groupName.trim();
+        }
+
+        if (regType === 'joinGroup') {
+            // Có thể thêm kiểm tra regex nếu mã tham gia có định dạng cố định
+            return !joinCode.trim();
+        }
+        
+        // Nếu là Nhóm (hoặc Cá nhân/Nhóm) mà chưa chọn hình thức nào
+        if (selectedActivity.hinh_thuc === 'Nhóm' || selectedActivity.hinh_thuc === 'Cá nhân/Nhóm') {
+             return regType === '';
+        }
+
+        return false;
+    }, [loading, selectedActivity, regType, groupName, joinCode]);
+
     // Check if user is student - show error if not
     if (!isStudent) {
         return (
@@ -227,6 +294,7 @@ export default function DangKyThiManagement({ user }) {
                                 const hd = getHoatDongInfo(hdt.id_hd);
                                 const userReg = registrations.find(r => r.id_hd === hdt.id_hd);
                                 const isReg = !!userReg;
+                                const hasConflict = hasConflictingDkiThamDu(hdt.id_hd);
 
                                 return (
                                     <div key={hdt.id_hd} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
@@ -235,6 +303,12 @@ export default function DangKyThiManagement({ user }) {
                                             <div className="text-xs text-gray-500 mb-2">ID: {hdt.id_hd}</div>
                                             <div className="text-sm text-gray-600 mb-2">Hình thức: {hdt.hinh_thuc || 'N/A'}</div>
                                             <div className="text-sm text-gray-500">Thời gian: {hd.tg_bat_dau ? new Date(hd.tg_bat_dau).toLocaleString('vi-VN') : '—'}</div>
+
+                                            {hasConflict && !isReg && (
+                                                <div className="mt-2 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                                                    ⚠ **Đã đăng ký tham dự - không thể đăng ký thi**
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="mt-4 flex items-center justify-between">
@@ -266,6 +340,11 @@ export default function DangKyThiManagement({ user }) {
                                                 ) : (
                                                     <button
                                                         onClick={() => {
+                                                            if (hasConflict) {
+                                                                toast.error('Bạn đã đăng ký tham dự cho hoạt động này. Không thể đăng ký thi.');
+                                                                return;
+                                                            }
+
                                                             // If activity is configured as individual-only, register directly without modal
                                                             if (hdt.hinh_thuc === 'Cá nhân') {
                                                                 (async () => {
@@ -283,12 +362,20 @@ export default function DangKyThiManagement({ user }) {
                                                                 return;
                                                             }
 
-                                                            // Otherwise open modal to allow choosing group or individual
+                                                            // Otherwise open modal
                                                             setSelectedActivity(hdt);
                                                             setShowRegModal(true);
-                                                            setRegType('individual');
+                                                            // **Đặt regType là rỗng nếu là Nhóm để bắt buộc người dùng chọn**
+                                                            setRegType(hdt.hinh_thuc === 'Nhóm' ? '' : 'individual');
+                                                            setGroupName('');
+                                                            setJoinCode('');
                                                         }}
-                                                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                                        disabled={hasConflict}
+                                                        className={`px-4 py-2 rounded text-white ${
+                                                            hasConflict
+                                                                ? 'bg-gray-400 cursor-not-allowed'
+                                                                : 'bg-green-600 hover:bg-green-700 cursor-pointer'
+                                                        }`}
                                                     >
                                                         Đăng Ký
                                                     </button>
@@ -323,35 +410,45 @@ export default function DangKyThiManagement({ user }) {
             {/* Registration Modal */}
             <Modal
                 isOpen={showRegModal}
-                onClose={() => { setShowRegModal(false); setRegType('individual'); setGroupName(''); setJoinCode(''); }}
-                title="Đăng Ký Hoạt Động"
+                onClose={() => { setShowRegModal(false); setRegType(''); setGroupName(''); setJoinCode(''); }} // **Reset regType về rỗng**
+                title={`Đăng Ký: ${getHoatDongInfo(selectedActivity?.id_hd).ten_hd || 'Hoạt động'}`}
                 size="md"
             >
                 <form onSubmit={handleRegister} className="space-y-4">
                     <div>
                         <p className="text-sm text-gray-600 mb-3">
-                            <strong>Hoạt động:</strong> {selectedActivity?.hinh_thuc === 'Nhóm' ? 'Nhóm' : (selectedActivity?.hinh_thuc === 'Cá nhân' ? 'Cá nhân' : 'Cá nhân/Nhóm')}
+                            <strong>Hoạt động:</strong> {selectedActivity?.hinh_thuc || 'Cá nhân/Nhóm'}
                         </p>
                     </div>
 
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700">Hình thức đăng ký *</label>
                         <div className="space-y-2">
+                            {/* Cho phép Cá nhân nếu hoạt động KHÔNG chỉ định rõ là "Nhóm" */}
                             {selectedActivity?.hinh_thuc !== 'Nhóm' && (
                                 <label className="flex items-center">
                                     <input type="radio" name="regType" value="individual" checked={regType === 'individual'} onChange={() => setRegType('individual')} className="mr-2" />
                                     <span className="text-sm">Đăng ký cá nhân</span>
                                 </label>
                             )}
-                            <label className="flex items-center">
-                                <input type="radio" name="regType" value="createGroup" checked={regType === 'createGroup'} onChange={() => setRegType('createGroup')} className="mr-2" />
-                                <span className="text-sm">Tạo nhóm</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input type="radio" name="regType" value="joinGroup" checked={regType === 'joinGroup'} onChange={() => setRegType('joinGroup')} className="mr-2" />
-                                <span className="text-sm">Tham gia nhóm</span>
-                            </label>
+                            {/* Cho phép Tạo nhóm/Tham gia nhóm nếu hoạt động KHÔNG chỉ định rõ là "Cá nhân" */}
+                            {selectedActivity?.hinh_thuc !== 'Cá nhân' && (
+                                <>
+                                    <label className="flex items-center">
+                                        <input type="radio" name="regType" value="createGroup" checked={regType === 'createGroup'} onChange={() => setRegType('createGroup')} className="mr-2" />
+                                        <span className="text-sm">Tạo nhóm</span>
+                                    </label>
+                                    <label className="flex items-center">
+                                        <input type="radio" name="regType" value="joinGroup" checked={regType === 'joinGroup'} onChange={() => setRegType('joinGroup')} className="mr-2" />
+                                        <span className="text-sm">Tham gia nhóm</span>
+                                    </label>
+                                </>
+                            )}
                         </div>
+                        {selectedActivity?.hinh_thuc === 'Nhóm' && regType === '' && (
+                             <p className="text-xs text-red-500 mt-1">Vui lòng chọn Tạo nhóm hoặc Tham gia nhóm.</p>
+                        )}
+                        
                     </div>
 
                     {regType === 'createGroup' && (
@@ -384,14 +481,19 @@ export default function DangKyThiManagement({ user }) {
 
                     <div className="flex justify-end space-x-3 pt-4">
                         <button type="button" onClick={() => setShowRegModal(false)} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Hủy</button>
-                        <button type="submit" disabled={loading} className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: config.accent_color }}>
+                        <button 
+                            type="submit" 
+                            disabled={isRegisterButtonDisabled} // **Sử dụng biến tính toán**
+                            className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50" 
+                            style={{ backgroundColor: config.accent_color }}
+                        >
                             {loading ? 'Đang xử lý...' : 'Đăng ký'}
                         </button>
                     </div>
                 </form>
             </Modal>
 
-            {/* Group Members Modal */}
+            {/* Group Members Modal (Giữ nguyên) */}
             <Modal
                 isOpen={showGroupModal}
                 onClose={() => setShowGroupModal(false)}

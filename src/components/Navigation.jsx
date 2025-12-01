@@ -102,6 +102,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       } else {
         items.push({ id: 'dang_ky_thi', label: 'Đăng Ký Thi' });
         items.push({ id: 'dki_tham_du', label: 'Đăng Ký Tham Dự' });
+        items.push({ id: 'diem_danh', label: 'Điểm Danh' });
       }
     }
 

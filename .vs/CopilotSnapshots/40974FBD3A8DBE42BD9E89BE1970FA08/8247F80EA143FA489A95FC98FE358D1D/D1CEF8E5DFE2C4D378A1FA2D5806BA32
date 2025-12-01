@@ -1,0 +1,399 @@
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import toast from 'react-hot-toast';
+
+// Giả định các hàm service và hook cần thiết đã được import
+// import { useApp } from '../hooks/useApp';
+// import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
+// import { fetchDkiThamDu } from '../services/dki-tham-du';
+// import { fetchDiemDanh, registerDiemDanh, cancelDiemDanh } from '../services/diem-danh';
+
+// --- MOCK DATA và HOOKS cho môi trường độc lập ---
+const MOCK_HDTD_LIST = [
+    { id_hd_tham_du: 101, ten_hd: 'Thuyết trình về AI', id_hd: 1, yeu_cau_diem_danh: true },
+    { id_hd_tham_du: 102, ten_hd: 'Hội thảo Kỹ năng Mềm', id_hd: 2, yeu_cau_diem_danh: true },
+    { id_hd_tham_du: 103, ten_hd: 'Hoạt động tình nguyện', id_hd: 3, yeu_cau_diem_danh: false },
+    { id_hd_tham_du: 104, ten_hd: 'Tọa đàm Khởi nghiệp', id_hd: 4, yeu_cau_diem_danh: true },
+];
+
+const MOCK_DKI_REGS = [
+    { ma_sv: 'SV001', id_hd: 101, trang_thai: 1 }, // Đã duyệt tham dự 101
+    { ma_sv: 'SV001', id_hd: 102, trang_thai: 0 }, // Chưa duyệt tham dự 102
+    { ma_sv: 'SV001', id_hd: 104, trang_thai: 1 }, // Đã duyệt tham dự 104
+];
+
+let MOCK_DIEM_DANH_REGS = [
+    { id: 1, ma_sv: 'SV001', id_hd: 101, trang_thai: 0, thoi_gian: new Date().toISOString(), anh_minh_chung: 'data:image/png;base64,iVBORw0KGg' },
+];
+
+const mockFetch = (data) => new Promise(resolve => setTimeout(() => resolve(data), 500));
+
+const fetchHoatDongThamDu = () => mockFetch(MOCK_HDTD_LIST);
+const fetchDkiThamDu = () => mockFetch(MOCK_DKI_REGS);
+const fetchDiemDanh = () => mockFetch(MOCK_DIEM_DANH_REGS);
+
+const registerDiemDanh = (id_hd_tham_du, imageData) => {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            if (MOCK_DIEM_DANH_REGS.some(r => r.id_hd === id_hd_tham_du)) {
+                reject({ message: 'Bạn đã điểm danh cho hoạt động này.' });
+                return;
+            }
+            const newReg = {
+                id: MOCK_DIEM_DANH_REGS.length + 1,
+                ma_sv: 'SV001', // Giả định ma_sv trong mock
+                id_hd: id_hd_tham_du,
+                trang_thai: 0, // Mặc định là Chưa duyệt
+                thoi_gian: new Date().toISOString(),
+                anh_minh_chung: imageData.substring(0, 20) + '...'
+            };
+            MOCK_DIEM_DANH_REGS.push(newReg);
+            resolve(newReg);
+        }, 800);
+    });
+};
+
+const cancelDiemDanh = (id) => {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            const index = MOCK_DIEM_DANH_REGS.findIndex(r => r.id === id);
+            if (index !== -1 && MOCK_DIEM_DANH_REGS[index].trang_thai !== 1) {
+                MOCK_DIEM_DANH_REGS.splice(index, 1);
+                resolve();
+            } else {
+                reject({ message: 'Không thể hủy điểm danh đã được duyệt.' });
+            }
+        }, 500);
+    });
+};
+
+// Giả định config và user
+const mockConfig = { accent_color: '#4f46e5', text_color: '#1e3a8a' };
+const mockUser = { ma_sv: 'SV001', role: 'Sinh viên' };
+
+// Thay thế hook useApp thực tế
+const useApp = () => ({
+    state: { config: mockConfig },
+    user: mockUser
+});
+// --- KẾT THÚC MOCK DATA ---
+
+
+const getTrangThaiColor = (trang_thai) => {
+    if (trang_thai === 1) return 'text-green-600 bg-green-50 border-green-200';
+    if (trang_thai === -1) return 'text-red-600 bg-red-50 border-red-200';
+    return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+};
+
+const getTrangThaiText = (trang_thai) => {
+    if (trang_thai === 1) return 'Đã duyệt';
+    if (trang_thai === -1) return 'Từ chối';
+    return 'Chờ duyệt';
+};
+
+export default function DiemDanhStudent({ user = mockUser }) {
+    const [hdtdList, setHdtdList] = useState([]);
+    const [dkiRegs, setDkiRegs] = useState([]);
+    const [diemDanhRegs, setDiemDanhRegs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // State cho Modal Điểm danh
+    const [showDiemDanhModal, setShowDiemDanhModal] = useState(false);
+    const [selectedHdtd, setSelectedHdtd] = useState(null);
+    const [imageData, setImageData] = useState(null);
+    const [manualMaSv, setManualMaSv] = useState(''); // <-- State mới
+
+    const { state } = useApp();
+    const { config } = state;
+
+    // Lọc ra các hoạt động tham dự mà sinh viên đã đăng ký và có yêu cầu điểm danh
+    const activitiesForAttendance = useMemo(() => {
+        if (!hdtdList.length || !dkiRegs.length) return [];
+
+        return hdtdList
+            .filter(hdtd => hdtd.yeu_cau_diem_danh)
+            .map(hdtd => {
+                const registration = dkiRegs.find(d => d.id_hd === hdtd.id_hd_tham_du && d.trang_thai === 1); // Chỉ quan tâm đăng ký Đã duyệt
+                const attendance = diemDanhRegs.find(dd => dd.id_hd === hdtd.id_hd_tham_du);
+                
+                if (!registration) return null; // Bỏ qua nếu chưa đăng ký tham dự hoặc chưa duyệt
+
+                return {
+                    ...hdtd,
+                    isRegistered: !!registration,
+                    attendance: attendance || null,
+                };
+            })
+            .filter(item => item !== null)
+            .sort((a, b) => a.id_hd_tham_du - b.id_hd_tham_du);
+    }, [hdtdList, dkiRegs, diemDanhRegs]);
+
+    const refreshData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [hdtdData, dkiData, diemDanhData] = await Promise.all([
+                fetchHoatDongThamDu(),
+                fetchDkiThamDu(),
+                fetchDiemDanh(),
+            ]);
+            setHdtdList(hdtdData);
+            setDkiRegs(dkiData);
+            setDiemDanhRegs(diemDanhData);
+        } catch (err) {
+            console.error('Lỗi tải dữ liệu:', err);
+            toast.error('Không thể tải dữ liệu điểm danh.');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        refreshData();
+    }, [refreshData]);
+
+    // Xử lý tải ảnh minh chứng
+    const handleImageUpload = (event) => {
+        const file = event.target.files[0];
+        if (file && file.size > 2 * 1024 * 1024) { // Giới hạn 2MB
+            toast.error('Kích thước ảnh không được vượt quá 2MB');
+            setImageData(null);
+            event.target.value = null; 
+            return;
+        }
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImageData(reader.result); // Lưu trữ base64 data
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // Xử lý Điểm danh
+    const handleDiemDanh = async (e) => {
+        e.preventDefault();
+        
+        if (!manualMaSv.trim()) {
+            toast.error('Vui lòng nhập Mã sinh viên.');
+            return;
+        }
+
+        // Thêm bước xác minh: đảm bảo mã SV nhập vào khớp với mã SV đã đăng nhập
+        if (manualMaSv.trim() !== user.ma_sv) {
+             toast.error('Mã sinh viên nhập vào không khớp với tài khoản đã đăng nhập.');
+             return;
+        }
+        
+        if (!selectedHdtd || !imageData) {
+            toast.error('Vui lòng cung cấp ảnh minh chứng.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            // Service call should ideally use manualMaSv, but using user.ma_sv for mock consistency
+            await registerDiemDanh(selectedHdtd.id_hd_tham_du, imageData); 
+            toast.success('Điểm danh thành công! Chờ duyệt.');
+            setShowDiemDanhModal(false);
+            setImageData(null);
+            setManualMaSv(''); // <-- Reset state
+            await refreshData();
+        } catch (err) {
+            console.error('Lỗi điểm danh:', err);
+            toast.error((err && err.message) || 'Lỗi khi điểm danh.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Xử lý Hủy điểm danh
+    const handleCancelDiemDanh = async (attendanceId) => {
+        if (!attendanceId) return;
+
+        // Thay thế window.confirm bằng modal UI theo quy tắc
+        if (!window.confirm('Bạn có chắc muốn hủy điểm danh này?')) {
+            return;
+        }
+        
+        try {
+            await cancelDiemDanh(attendanceId);
+            toast.success('Hủy điểm danh thành công.');
+            await refreshData();
+        } catch (err) {
+            console.error('Lỗi hủy điểm danh:', err);
+            toast.error((err && err.message) || 'Lỗi khi hủy điểm danh.');
+        }
+    };
+
+
+    if (loading) {
+        return (
+            <div className="p-8 text-center text-gray-500">
+                <div className="animate-spin inline-block w-6 h-6 border-4 border-t-transparent border-blue-500 rounded-full"></div>
+                <p className="mt-2">Đang tải dữ liệu...</p>
+            </div>
+        );
+    }
+
+    if (!user || user.role !== 'Sinh viên') {
+         return (
+             <div className="p-6 bg-red-50 border border-red-200 rounded">
+                 <p className="text-red-700 font-medium">⚠️ Chỉ sinh viên mới có thể truy cập trang này</p>
+             </div>
+         );
+    }
+
+
+    // Modal Component (dùng lại cấu trúc từ component trước)
+    const AttendanceModal = ({ isOpen, onClose, activity }) => {
+        const handleClose = () => {
+            setManualMaSv(''); // Reset MaSv khi đóng
+            onClose();
+        };
+
+        return (
+            <div className={`fixed inset-0 z-50 overflow-y-auto ${isOpen ? '' : 'hidden'}`}>
+                <div className="flex items-center justify-center min-h-screen px-4 text-center">
+                    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={handleClose}></div>
+                    <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+                        <h3 className="text-lg font-medium leading-6 text-gray-900 border-b pb-3 mb-4">
+                            Điểm Danh: {activity?.ten_hd}
+                        </h3>
+                        <form onSubmit={handleDiemDanh} className="space-y-4">
+                            {/* Khung nhập Ma_SV (Cho phép nhập thủ công) */}
+                            <div>
+                                <label htmlFor="ma_sv" className="block text-sm font-medium text-gray-700">Mã sinh viên *</label>
+                                <input
+                                    id="ma_sv"
+                                    type="text"
+                                    value={manualMaSv} // Rỗng ban đầu
+                                    onChange={(e) => setManualMaSv(e.target.value)} // Cho phép nhập
+                                    placeholder="Nhập Mã sinh viên của bạn"
+                                    required
+                                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 pt-2">
+                                Vui lòng tải lên ảnh minh chứng tham dự hoạt động (ví dụ: ảnh selfie tại sự kiện, ảnh chụp màn hình nếu là online).
+                            </p>
+                            <div>
+                                <label htmlFor="proof" className="block text-sm font-medium text-gray-700">Ảnh minh chứng (tối đa 2MB)*</label>
+                                <input
+                                    id="proof"
+                                    type="file"
+                                    accept="image/*"
+                                    required
+                                    onChange={handleImageUpload}
+                                    className="mt-1 w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
+                                {imageData && (
+                                    <div className="mt-2 text-xs text-gray-500 p-2 bg-green-50 rounded">
+                                        Ảnh đã được tải lên: {imageData.substring(0, 50)}...
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button type="button" onClick={handleClose} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Hủy</button>
+                                <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: config.accent_color }}>
+                                    {isSubmitting ? 'Đang gửi...' : 'Xác nhận Điểm danh'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-6 fade-in p-4 sm:p-6 lg:p-8">
+            <div>
+                <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Điểm Danh Hoạt Động Tham Dự</h1>
+                <p className="text-gray-500 mt-1">Chỉ hiển thị các hoạt động bạn đã đăng ký tham dự (và đã được duyệt) và có yêu cầu điểm danh.</p>
+            </div>
+
+            {/* Danh sách hoạt động cần điểm danh - Card grid */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden p-6">
+                {activitiesForAttendance.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                        Không có hoạt động nào cần điểm danh tại thời điểm này.
+                    </div>
+                ) : (
+                    <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                        {activitiesForAttendance.map((hdtd) => {
+                            const attendance = hdtd.attendance;
+                            const isAttended = !!attendance;
+
+                            return (
+                                <div key={hdtd.id_hd_tham_du} className="bg-white border rounded-lg shadow-xl p-5 flex flex-col justify-between hover:shadow-2xl transition duration-300">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 mb-2">{hdtd.ten_hd}</h3>
+                                        <div className="text-xs text-gray-500 mb-4">ID Hoạt động: {hdtd.id_hd_tham_du}</div>
+                                        
+                                        {isAttended && (
+                                            <div className={`mt-2 px-3 py-1 inline-flex text-sm font-semibold rounded-full border ${getTrangThaiColor(attendance.trang_thai)}`}>
+                                                {getTrangThaiText(attendance.trang_thai)}
+                                            </div>
+                                        )}
+
+                                        {attendance?.thoi_gian && (
+                                            <div className="text-xs text-gray-600 mt-2">
+                                                Thời gian điểm danh: {new Date(attendance.thoi_gian).toLocaleString('vi-VN')}
+                                            </div>
+                                        )}
+                                        {attendance?.anh_minh_chung && (
+                                            <div className="text-xs text-gray-400 mt-1 truncate">
+                                                Minh chứng: {attendance.anh_minh_chung}
+                                            </div>
+                                        )}
+
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end space-x-2">
+                                        {isAttended ? (
+                                            <>
+                                                {attendance.trang_thai !== 1 && (
+                                                    <button 
+                                                        onClick={() => handleCancelDiemDanh(attendance.id)} 
+                                                        className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition"
+                                                    >
+                                                        Hủy Điểm danh
+                                                    </button>
+                                                )}
+                                                <a 
+                                                    href={attendance.anh_minh_chung} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition"
+                                                >
+                                                    Xem Minh chứng
+                                                </a>
+                                            </>
+                                        ) : (
+                                            <button
+                                                onClick={() => { setSelectedHdtd(hdtd); setShowDiemDanhModal(true); }}
+                                                className="px-4 py-2 text-white font-medium rounded-md hover:opacity-90 transition shadow-lg"
+                                                style={{ backgroundColor: config.accent_color }}
+                                            >
+                                                Điểm Danh
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Modal Điểm danh */}
+            <AttendanceModal 
+                isOpen={showDiemDanhModal} 
+                onClose={() => { setShowDiemDanhModal(false); setImageData(null); }}
+                activity={selectedHdtd} 
+            />
+        </div>
+    );
+}

@@ -179,9 +179,12 @@ export default function DkiThamDuRegister({ user }) {
                   <div key={hdtd.id_hd_tham_du} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{hdtd.ten_hd}</h3>
-                      <div className="text-xs text-gray-500 mb-2">ID: {hdtd.id_hd_tham_du}</div>
+                      <div className="flex gap-5 text-gray-500 my-2">
+                        <div className="text-xs text-gray-500 mb-2">ID Hoạt động tham dự: {hdtd.id_hd_tham_du}</div>
+                        <div className="text-xs text-gray-500 mb-2">Hoạt động: <strong> {hd.ten_hd} </strong></div>
+                      </div>
                       <div className="text-sm text-gray-500">Thời gian: {hd.tg_bat_dau ? new Date(hd.tg_bat_dau).toLocaleString('vi-VN') : '—'}</div>
-                      
+
                       {hasConflict && (
                         <div className="mt-2 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600">
                           ⚠ Đã đăng ký thi - không thể tham dự
@@ -214,11 +217,10 @@ export default function DkiThamDuRegister({ user }) {
                               setShowRegModal(true);
                             }}
                             disabled={hasConflict}
-                            className={`px-4 py-2 rounded text-white ${
-                              hasConflict
+                            className={`px-4 py-2 rounded text-white ${hasConflict
                                 ? 'bg-gray-400 cursor-not-allowed'
                                 : 'bg-green-600 hover:bg-green-700 cursor-pointer'
-                            }`}
+                              }`}
                           >
                             Đăng Ký
                           </button>

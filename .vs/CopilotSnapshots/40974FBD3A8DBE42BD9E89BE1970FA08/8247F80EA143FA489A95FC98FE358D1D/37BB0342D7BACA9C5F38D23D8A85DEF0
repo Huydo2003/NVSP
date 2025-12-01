@@ -1,4 +1,4 @@
-/* eslint-env node */
+﻿/* eslint-env node */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -2363,62 +2363,6 @@ app.get('/api/thanh-vien-nhom/:id_or_ten_nhom', auth, async (req, res) => {
   }
 });
 
-
-
-// ===== DIEM_DANH (Attendance) =====
-// GET /api/diem-danh
-app.get('/api/diem-danh', auth, async (req, res) => {
-    try {
-        const role = (req.user.role || '').toLowerCase();
-        const ma_sv = req.user.ma_ca_nhan;
-        if (role === 'admin') {
-            const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh ORDER BY thoi_gian DESC');
-            return res.json(rows || []);
-        }
-        const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh WHERE ma_sv = ? ORDER BY thoi_gian DESC', [ma_sv]);
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/diem-danh error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
-});
-
-// POST /api/diem-danh - body: { id_hd_tham_du, anh_minh_chung, ma_sv? }
-app.post('/api/diem-danh', auth, async (req, res) => {
-    try {
-        const { id_hd_tham_du, anh_minh_chung, ma_sv: providedMa } = req.body || {};
-        if (!id_hd_tham_du || !anh_minh_chung) return res.status(400).json({ message: 'Thiếu id_hd_tham_du hoặc ảnh minh chứng' });
-        const ma_sv = providedMa && String(providedMa).trim() ? String(providedMa).trim() : req.user.ma_ca_nhan;
-        const [hdtRows] = await pool.execute('SELECT id_hd_tham_du FROM hoat_dong_tham_du WHERE id_hd_tham_du = ? LIMIT 1', [id_hd_tham_du]);
-        if (!hdtRows || hdtRows.length === 0) return res.status(404).json({ message: 'Hoạt động tham dự không tồn tại' });
-        const [exist] = await pool.execute('SELECT id FROM diem_danh WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd_tham_du, ma_sv]);
-        if (exist && exist.length > 0) return res.status(400).json({ message: 'Bạn đã điểm danh cho hoạt động này' });
-        await pool.execute('INSERT INTO diem_danh (ma_sv, id_hd, trang_thai, thoi_gian, anh_minh_chung) VALUES (?, ?, ?, NOW(), ?)', [ma_sv, id_hd_tham_du, 0, anh_minh_chung]);
-        res.status(201).json({ message: 'Đã gửi yêu cầu điểm danh. Chờ duyệt.' });
-    } catch (err) {
-        console.error('POST /api/diem-danh error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
-});
-
-// DELETE /api/diem-danh/:id
-app.delete('/api/diem-danh/:id', auth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const uid = req.user.ma_ca_nhan;
-        const role = (req.user.role || '').toLowerCase();
-        const [rows] = await pool.execute('SELECT id, ma_sv, trang_thai FROM diem_danh WHERE id = ? LIMIT 1', [id]);
-        if (!rows || rows.length === 0) return res.status(404).json({ message: 'Bản ghi điểm danh không tồn tại' });
-        const rec = rows[0];
-        if (role !== 'admin' && rec.ma_sv !== uid) return res.status(403).json({ message: 'Không có quyền hủy điểm danh này' });
-        if (rec.trang_thai === 1) return res.status(400).json({ message: 'Không thể hủy điểm danh đã được duyệt' });
-        await pool.execute('DELETE FROM diem_danh WHERE id = ?', [id]);
-        res.json({ message: 'Đã hủy điểm danh' });
-    } catch (err) {
-        console.error('DELETE /api/diem-danh/:id error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
-});
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);
