@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
-
+import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
 import { useApp } from '../hooks/useApp';
 import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
 import { fetchDkiThamDu } from '../services/dki-tham-du';
@@ -58,24 +59,19 @@ function AttendanceModal({ isOpen, onClose, activity, config, user, refreshData 
         }
     }, [isOpen, activity]);
 
-    const handleImageUpload = (event) => {
+    const handleImageUpload = (e) => {
         setFileError(null);
-        const file = event.target.files && event.target.files[0];
-        if (!file) {
-            setImageData(null);
-            return;
-        }
+        const file = e.target.files?.[0];
+        if (!file) return setImageData(null);
 
-        if (!file.type || !file.type.startsWith('image/')) {
-            setFileError('Vui lòng chọn tệp ảnh hợp lệ (jpg, png, ...).');
-            setImageData(null);
-            return;
+        if (!file.type.startsWith('image/')) {
+            setFileError("Vui lòng chọn tệp ảnh hợp lệ.");
+            return setImageData(null);
         }
 
         if (file.size > 2 * 1024 * 1024) {
-            setFileError('Kích thước ảnh không được vượt quá 2MB');
-            setImageData(null);
-            return;
+            setFileError("Kích thước ảnh không vượt quá 2MB.");
+            return setImageData(null);
         }
 
         const reader = new FileReader();
@@ -85,87 +81,83 @@ function AttendanceModal({ isOpen, onClose, activity, config, user, refreshData 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!activity || !imageData) {
-            setFileError('Vui lòng chọn hoạt động và tải lên ảnh minh chứng.');
-            return;
-        }
+        if (!imageData) return setFileError("Vui lòng tải lên ảnh minh chứng.");
 
         if (activity.expiredForAttendance) {
-            toast.error('Đã quá thời gian cho phép điểm danh.');
-            return;
+            return toast.error("Đã quá thời gian điểm danh.");
         }
-
-        if (fileError) return;
 
         setIsSubmitting(true);
         try {
-            const maSvPayload = manualMaSv && String(manualMaSv).trim() ? String(manualMaSv).trim() : undefined;
+            const maSvPayload =
+                manualMaSv?.trim() !== "" ? manualMaSv.trim() : undefined;
+
             await registerDiemDanh(activity.id_hd_tham_du, imageData, maSvPayload);
-            toast.success('Điểm danh thành công! Chờ duyệt.');
+            toast.success("Điểm danh thành công!");
             onClose();
             await refreshData();
         } catch (err) {
-            console.error('Lỗi điểm danh:', err);
-            toast.error((err && err.message) || 'Lỗi khi điểm danh.');
+            toast.error("Lỗi khi điểm danh.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleClose = () => { setManualMaSv(''); setImageData(null); setFileError(null); onClose(); };
-
     return (
-        <div className={`fixed inset-0 z-50 overflow-y-auto ${isOpen ? '' : 'hidden'}`}>
-            <div className="flex items-center justify-center min-h-screen px-4 text-center">
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 z-40" onClick={handleClose}></div>
-                <div className="relative z-50 inline-block w-full max-w-md p-6 my-8 bg-white rounded-lg shadow-xl">
-                    <h3 className="text-lg font-medium text-gray-900 border-b pb-3 mb-4">Điểm Danh: {activity?.ten_hd}</h3>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={`Điểm danh: ${activity?.ten_hd || ""}`}
+            width="max-w-md"
+        >
+            <form onSubmit={handleSubmit} className="space-y-4">
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium">Mã sinh viên (tùy chọn)</label>
-                            <input
-                                type="text"
-                                value={manualMaSv}
-                                onChange={(e) => setManualMaSv(e.target.value)}
-                                placeholder={user?.ma_sv ? `Mặc định: ${user.ma_sv}` : 'Nhập Mã sinh viên nếu muốn gửi khác'}
-                                autoFocus
-                                className="mt-1 w-full px-3 py-2 border rounded-md"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium">Ảnh minh chứng *</label>
-                            <input type="file" accept="image/*" onChange={handleImageUpload} className="mt-1 w-full" />
-                            {fileError && (
-                                <div className="mt-2 text-sm text-red-600 font-medium">{fileError}</div>
-                            )}
-                            {imageData && !fileError && (
-                                <div className="mt-3">
-                                    <img src={imageData} alt="preview" className="max-h-48 border rounded-md" />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex justify-end space-x-3 pt-4">
-                            <button type="button" onClick={handleClose} className="px-4 py-2 bg-gray-200 rounded-md">Hủy</button>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting || !!fileError || !imageData}
-                                className="px-4 py-2 text-white rounded-md"
-                                style={{ backgroundColor: config.accent_color }}
-                            >
-                                {isSubmitting ? 'Đang gửi...' : 'Xác nhận Điểm danh'}
-                            </button>
-                        </div>
-                    </form>
+                <div>
+                    <label className="text-sm font-medium">Mã sinh viên (tùy chọn)</label>
+                    <input
+                        type="text"
+                        value={manualMaSv}
+                        onChange={(e) => setManualMaSv(e.target.value)}
+                        placeholder={user?.ma_sv ? `Mặc định: ${user.ma_sv}` : "Nhập mã sinh viên"}
+                        className="mt-1 w-full px-3 py-2 border rounded-md"
+                    />
                 </div>
-            </div>
-        </div>
+
+                <div>
+                    <label className="text-sm font-medium">Ảnh minh chứng *</label>
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="mt-1 w-full" />
+
+                    {fileError && <p className="text-red-600 text-sm mt-1">{fileError}</p>}
+
+                    {imageData && (
+                        <img src={imageData} alt="preview" className="mt-3 max-h-48 border rounded-md" />
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3">
+                    <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">
+                        Hủy
+                    </button>
+
+                    <button
+                        type="submit"
+                        disabled={isSubmitting || !imageData}
+                        className="px-4 py-2 text-white rounded-md"
+                        style={{ backgroundColor: config.accent_color }}
+                    >
+                        {isSubmitting ? "Đang gửi..." : "Xác nhận"}
+                    </button>
+                </div>
+            </form>
+        </Modal>
     );
 }
 
+
 export default function DiemDanhStudent({ user: propUser = null }) {
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [cancelTargetId, setCancelTargetId] = useState(null);
+
     const [hdtdList, setHdtdList] = useState([]);
     const [dkiRegs, setDkiRegs] = useState([]);
     const [diemDanhRegs, setDiemDanhRegs] = useState([]);
@@ -256,18 +248,27 @@ export default function DiemDanhStudent({ user: propUser = null }) {
         refreshData();
     }, [refreshData]);
 
-    const handleCancelDiemDanh = async (attendanceId) => {
-        if (!attendanceId) return;
-        if (!window.confirm('Bạn có chắc muốn hủy điểm danh này?')) return;
+    const handleCancelDiemDanh = (attendanceId) => {
+        setCancelTargetId(attendanceId);
+        setShowCancelConfirm(true);
+    };
+
+    const confirmCancelDiemDanh = async () => {
+        if (!cancelTargetId) return;
+
         try {
-            await cancelDiemDanh(attendanceId);
+            await cancelDiemDanh(cancelTargetId);
             toast.success('Hủy điểm danh thành công.');
             await refreshData();
         } catch (err) {
             console.error('Lỗi hủy điểm danh:', err);
             toast.error((err && err.message) || 'Lỗi khi hủy điểm danh.');
+        } finally {
+            setShowCancelConfirm(false);
+            setCancelTargetId(null);
         }
     };
+
 
     if (loading) {
         return (
@@ -279,72 +280,87 @@ export default function DiemDanhStudent({ user: propUser = null }) {
     }
 
     return (
-        <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-            <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Điểm Danh Hoạt Động Tham Dự</h1>
-            <p className="text-gray-500">Chỉ hiển thị hoạt động đã đăng ký và yêu cầu điểm danh.</p>
+        <>
+            <ConfirmDialog
+                isOpen={showCancelConfirm}
+                title="Xác nhận hủy điểm danh"
+                message="Bạn có chắc chắn muốn hủy điểm danh này không? Sau khi hủy, bạn cần điểm danh lại nếu còn thời gian."
+                confirmText="Hủy điểm danh"
+                cancelText="Đóng"
+                onConfirm={confirmCancelDiemDanh}
+                onCancel={() => {
+                    setShowCancelConfirm(false);
+                    setCancelTargetId(null);
+                }}
+            />
 
-            <div className="bg-white rounded-lg shadow-md p-6">
-                {activitiesForAttendance.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">Không có hoạt động nào cần điểm danh.</div>
-                ) : (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {activitiesForAttendance.map((hdtd) => {
-                            const attendance = hdtd.attendance;
-                            const isAttended = !!attendance;
+            <div className="space-y-6">
+                <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Điểm Danh Hoạt Động Tham Dự</h1>
+                <p className="text-gray-500">Chỉ hiển thị hoạt động đã đăng ký và yêu cầu điểm danh.</p>
 
-                            return (
-                                <div key={hdtd.id_hd_tham_du} className="bg-white border rounded-lg shadow-lg p-5">
-                                    <h3 className="text-xl font-bold">{hdtd.ten_hd}</h3>
-                                    <div className="text-xs text-gray-500 mb-3">ID Hoạt động: {hdtd.id_hd_tham_du}</div>
+                <div className="bg-white rounded-lg shadow-md p-6">
+                    {activitiesForAttendance.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">Không có hoạt động nào cần điểm danh.</div>
+                    ) : (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {activitiesForAttendance.map((hdtd) => {
+                                const attendance = hdtd.attendance;
+                                const isAttended = !!attendance;
 
-                                    {hdtd.expiredForAttendance && !isAttended && (
-                                        <div className="text-sm text-red-600 font-semibold mb-2">Đã quá thời gian cho phép điểm danh</div>
-                                    )}
+                                return (
+                                    <div key={hdtd.id_hd_tham_du} className="bg-white border rounded-lg shadow-lg p-5">
+                                        <h3 className="text-xl font-bold">{hdtd.ten_hd}</h3>
+                                        <div className="text-xs text-gray-500 mb-3">ID Hoạt động: {hdtd.id_hd_tham_du}</div>
 
-                                    {isAttended && (
-                                        <>
-                                            <div className={`mt-2 px-3 py-1 inline-flex text-sm font-semibold rounded-full border ${getTrangThaiColor(attendance.trang_thai)}`}>
-                                                {getTrangThaiText(attendance.trang_thai)}
-                                            </div>
+                                        {hdtd.expiredForAttendance && !isAttended && (
+                                            <div className="text-sm text-red-600 font-semibold mb-2">Đã quá thời gian cho phép điểm danh</div>
+                                        )}
 
-                                            {attendance.thoi_gian && (
-                                                <div className="text-xs text-gray-600 mt-2">Thời gian: {new Date(attendance.thoi_gian).toLocaleString('vi-VN')}</div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    <div className="mt-4 flex justify-end space-x-2">
-                                        {isAttended ? (
+                                        {isAttended && (
                                             <>
-                                                {attendance.trang_thai !== 1 && (
-                                                    <button onClick={() => handleCancelDiemDanh(attendance.id)} className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md">Hủy Điểm danh</button>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <>
-                                                {hdtd.expiredForAttendance ? (
-                                                    <span className="text-red-500 text-sm font-semibold">Đã hết thời gian điểm danh</span>
-                                                ) : (
-                                                    <button onClick={() => { setSelectedHdtd(hdtd); setShowDiemDanhModal(true); }} className="px-4 py-2 text-white rounded-md" style={{ backgroundColor: config.accent_color }}>Điểm Danh</button>
+                                                <div className={`mt-2 px-3 py-1 inline-flex text-sm font-semibold rounded-full border ${getTrangThaiColor(attendance.trang_thai)}`}>
+                                                    {getTrangThaiText(attendance.trang_thai)}
+                                                </div>
+
+                                                {attendance.thoi_gian && (
+                                                    <div className="text-xs text-gray-600 mt-2">Thời gian: {new Date(attendance.thoi_gian).toLocaleString('vi-VN')}</div>
                                                 )}
                                             </>
                                         )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
 
-            <AttendanceModal
-                isOpen={showDiemDanhModal}
-                onClose={() => setShowDiemDanhModal(false)}
-                activity={selectedHdtd}
-                config={config}
-                user={user}
-                refreshData={refreshData}
-            />
-        </div>
+                                        <div className="mt-4 flex justify-end space-x-2">
+                                            {isAttended ? (
+                                                <>
+                                                    {attendance.trang_thai !== 1 && (
+                                                        <button onClick={() => handleCancelDiemDanh(attendance.id)} className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md">Hủy Điểm danh</button>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {hdtd.expiredForAttendance ? (
+                                                        <span className="text-red-500 text-sm font-semibold">Đã hết thời gian điểm danh</span>
+                                                    ) : (
+                                                        <button onClick={() => { setSelectedHdtd(hdtd); setShowDiemDanhModal(true); }} className="px-4 py-2 text-white rounded-md" style={{ backgroundColor: config.accent_color }}>Điểm Danh</button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <AttendanceModal
+                    isOpen={showDiemDanhModal}
+                    onClose={() => setShowDiemDanhModal(false)}
+                    activity={selectedHdtd}
+                    config={config}
+                    user={user}
+                    refreshData={refreshData}
+                />
+            </div>
+        </>
     );
 }

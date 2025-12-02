@@ -33,6 +33,7 @@ import DangKyThiApproval from './components/DangKyThiApproval';
 import DkiThamDuApproval from './components/DkiThamDuApproval';
 import DkiThamDuRegister from './components/DkiThamDuRegister';
 import DiemDanhStudent from './components/DiemDanhStudent';
+import DiemDanhManagement from './components/DiemDanhManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -183,6 +184,8 @@ function App() {
         return <DkiThamDuApproval />;
       case 'diem_danh':
         return <DiemDanhStudent user={currentUser} />;
+      case 'quan_ly_diem_danh':
+        return <DiemDanhManagement />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">

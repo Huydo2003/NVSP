@@ -1,0 +1,81 @@
+﻿import { apiFetch } from './api';
+
+export async function fetchDiemDanh() {
+  return apiFetch('/api/diem-danh');
+}
+
+// accept optional ma_sv
+export async function registerDiemDanh(id_hd_tham_du, anh_minh_chung, ma_sv) {
+  const body = { id_hd_tham_du, anh_minh_chung };
+  if (ma_sv) body.ma_sv = ma_sv;
+  return apiFetch('/api/diem-danh', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
+
+export async function cancelDiemDanh(id) {
+  return apiFetch(`/api/diem-danh/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+// Client-side CSV export: fetch approved attendance and build Blob
+export async function exportApprovedDiemDanh(options = {}) {
+  const { filename = 'diem_danh_duyet.csv', fields = [] } = options || {};
+
+  // fetch all attendance records (server will filter by role)
+  const records = await fetchDiemDanh();
+  if (!Array.isArray(records)) throw new Error('Không có dữ liệu để xuất');
+
+  const approved = records.filter(r => Number(r.trang_thai) === 1);
+
+  const defaultColumns = ['id', 'ma_sv', 'ho_ten', 'ten_hd', 'id_hd_tham_du', 'thoi_gian', 'trang_thai'];
+  const columns = (Array.isArray(fields) && fields.length > 0) ? fields : defaultColumns;
+
+  const headerMap = {
+    id: 'ID',
+    ma_sv: 'Ma_SV',
+    ho_ten: 'Ho_Ten',
+    ten_hd: 'Ten_Hoat_Dong_Tham_Du',
+    id_hd_tham_du: 'Id_Hoat_Dong_Tham_Du',
+    thoi_gian: 'Thoi_Gian',
+    trang_thai: 'Trang_Thai',
+    anh_minh_chung: 'Anh_Minh_Chung'
+  };
+
+  function csvEscape(val) {
+    if (val === null || typeof val === 'undefined') return '';
+    // handle Buffer-like objects from DB drivers
+    if (typeof val === 'object' && val !== null && Array.isArray(val.data)) {
+      try {
+        const buf = Buffer.from(val.data);
+        return buf.toString('base64');
+      } catch (e) {
+        return '';
+      }
+    }
+    let s = String(val);
+    s = s.replace(/\r?\n/g, ' ');
+    if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  let csv = columns.map(c => headerMap[c] || c).join(',') + '\n';
+  for (const r of approved) {
+    const rowArr = columns.map(c => {
+      switch (c) {
+        case 'ho_ten': return csvEscape(r.ho_ten || r.hoTen || '');
+        case 'ten_hd': return csvEscape(r.ten_hd || r.ten_hd || r.tenHoatDong || '');
+        case 'anh_minh_chung': return csvEscape(r.anh_minh_chung || r.anh_minh_chung || '');
+        default: return csvEscape(r[c]);
+      }
+    });
+    csv += rowArr.join(',') + '\n';
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  return { blob, filename };
+}

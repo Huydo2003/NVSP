@@ -1,0 +1,167 @@
+﻿import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { fetchDiemDanh, exportApprovedDiemDanh } from '../services/diem-danh';
+import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
+import { apiFetch } from '../services/api';
+
+// convert server buffer/blob to data URL for preview
+function convertBufferToBase64(blob) {
+  if (!blob) return null;
+  // server may return an object with data (Array) or a base64 string
+  if (blob?.data && Array.isArray(blob.data)) {
+    try {
+      const uint8 = new Uint8Array(blob.data);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64String = btoa(binary);
+      return `data:image/jpeg;base64,${base64String}`;
+    } catch (e) {
+      return null;
+    }
+  }
+  if (typeof blob === 'string') {
+    if (blob.startsWith('data:image')) return blob;
+    // if it's raw base64 without data url prefix
+    if (/^[A-Za-z0-9+/=]+$/.test(blob)) return `data:image/jpeg;base64,${blob}`;
+  }
+  return null;
+}
+
+export default function DiemDanhManagement() {
+  const [activities, setActivities] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openIdx, setOpenIdx] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [hdtd, dd] = await Promise.all([fetchHoatDongThamDu(), fetchDiemDanh()]);
+      setActivities(Array.isArray(hdtd) ? hdtd : []);
+      // preprocess images
+      const processed = (dd || []).map(r => ({ ...r, anh_preview: convertBufferToBase64(r.anh_minh_chung) }));
+      setRecords(processed);
+    } catch (err) {
+      console.error('Failed to load attendance', err);
+      toast.error('Không thể tải danh sách điểm danh');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleApprove = async (id) => {
+    try {
+      await apiFetch(`/api/diem-danh/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: 1 }) });
+      toast.success('Đã duyệt điểm danh');
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error('Duyệt thất bại');
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      await apiFetch(`/api/diem-danh/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: -1 }) });
+      toast.success('Đã từ chối điểm danh');
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error('Từ chối thất bại');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const blob = await exportApprovedDiemDanh();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'diem_danh_duyet.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Đã xuất file CSV');
+    } catch (err) {
+      console.error('Export error', err);
+      toast.error('Không thể xuất file');
+    }
+  };
+
+  if (loading) return <div className="p-6">Đang tải...</div>;
+
+  // group records by activity id (id_hd_tham_du)
+  const grouped = activities.map(act => {
+    const rows = records.filter(r => String(r.id_hd) === String(act.id_hd_tham_du) || String(r.id_hd_tham_du) === String(act.id_hd_tham_du));
+    return { activity: act, rows };
+  }).filter(g => g.rows.length > 0);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Quản lý Điểm Danh (theo hoạt động tham dự)</h2>
+        <div className="space-x-2">
+          <button onClick={handleExport} className="px-3 py-1 bg-green-600 text-white rounded">Xuất CSV (đã duyệt)</button>
+          <button onClick={load} className="px-3 py-1 bg-blue-600 text-white rounded">Tải lại</button>
+        </div>
+      </div>
+
+      {grouped.length === 0 ? (
+        <div className="bg-white rounded shadow p-6">Không có bản ghi điểm danh nào.</div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map((g, idx) => (
+            <div key={g.activity.id_hd_tham_du} className="bg-white rounded shadow">
+              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setOpenIdx(openIdx === idx ? null : idx)}>
+                <div>
+                  <div className="text-lg font-semibold">{g.activity.ten_hd}</div>
+                  <div className="text-sm text-gray-500">ID: {g.activity.id_hd_tham_du}</div>
+                </div>
+                <div className="text-sm text-gray-600">{g.rows.length} bản ghi</div>
+              </div>
+
+              {openIdx === idx && (
+                <div className="p-4 border-t">
+                  <table className="min-w-full divide-y">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2">ID</th>
+                        <th className="px-4 py-2">Mã SV</th>
+                        <th className="px-4 py-2">Họ tên</th>
+                        <th className="px-4 py-2">Thời gian</th>
+                        <th className="px-4 py-2">Trạng thái</th>
+                        <th className="px-4 py-2">Ảnh</th>
+                        <th className="px-4 py-2">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {g.rows.map(r => (
+                        <tr key={r.id}>
+                          <td className="px-4 py-2">{r.id}</td>
+                          <td className="px-4 py-2">{r.ma_sv}</td>
+                          <td className="px-4 py-2">{r.ho_ten}</td>
+                          <td className="px-4 py-2">{r.thoi_gian ? new Date(r.thoi_gian).toLocaleString('vi-VN') : ''}</td>
+                          <td className="px-4 py-2">{r.trang_thai === 1 ? 'Đã duyệt' : (r.trang_thai === -1 ? 'Từ chối' : 'Chờ duyệt')}</td>
+                          <td className="px-4 py-2">{r.anh_preview ? <img src={r.anh_preview} alt="img" className="max-h-20"/> : 'N/A'}</td>
+                          <td className="px-4 py-2">
+                            {r.trang_thai !== 1 && (<button onClick={() => handleApprove(r.id)} className="px-2 py-1 bg-green-100 text-green-700 rounded mr-2">Duyệt</button>)}
+                            {r.trang_thai !== -1 && (<button onClick={() => handleReject(r.id)} className="px-2 py-1 bg-red-100 text-red-700 rounded">Từ chối</button>)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,309 @@
+﻿import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
+import { fetchDiemDanh, exportApprovedDiemDanh } from '../services/diem-danh';
+import { fetchHoatDongThamDu } from '../services/hoat-dong-tham-du';
+import { apiFetch } from '../services/api';
+
+// convert server buffer/blob to data URL for preview
+function convertBufferToBase64(blob) {
+  if (!blob) return null;
+  // server may return an object with data (Array) or a base64 string
+  if (blob?.data && Array.isArray(blob.data)) {
+    try {
+      const uint8 = new Uint8Array(blob.data);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64String = btoa(binary);
+      return `data:image/jpeg;base64,${base64String}`;
+    } catch (e) {
+      return null;
+    }
+  }
+  if (typeof blob === 'string') {
+    if (blob.startsWith('data:image')) return blob;
+    // if it's raw base64 without data url prefix
+    if (/^[A-Za-z0-9+/=]+$/.test(blob)) return `data:image/jpeg;base64,${blob}`;
+  }
+  return null;
+}
+
+export default function DiemDanhManagement() {
+  const [activities, setActivities] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openIdx, setOpenIdx] = useState(null);
+
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState(null); // 'approve' | 'reject'
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilename, setExportFilename] = useState('diem_danh_duyet_v2.csv');
+  const availableFields = ['id', 'ma_sv', 'ho_ten', 'ten_hd', 'id_hd_tham_du', 'thoi_gian', 'trang_thai', 'anh_minh_chung'];
+  const [exportFields, setExportFields] = useState(['id', 'ma_sv', 'ho_ten', 'ten_hd', 'id_hd_tham_du', 'thoi_gian', 'trang_thai']);
+
+  const [confirm, setConfirm] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [hdtd, dd] = await Promise.all([fetchHoatDongThamDu(), fetchDiemDanh()]);
+      setActivities(Array.isArray(hdtd) ? hdtd : []);
+      // preprocess images
+      const processed = (dd || []).map(r => ({ ...r, anh_preview: convertBufferToBase64(r.anh_minh_chung) }));
+      setRecords(processed);
+    } catch (err) {
+      console.error('Failed to load attendance', err);
+      toast.error('Không thể tải danh sách điểm danh');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleApprove = async (id) => {
+    try {
+      await apiFetch(`/api/diem-danh/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: 1 }) });
+      toast.success('Đã duyệt điểm danh');
+      await load();
+      // clear selection if present
+      setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    } catch (err) {
+      console.error(err);
+      toast.error('Duyệt thất bại');
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      await apiFetch(`/api/diem-danh/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: -1 }) });
+      toast.success('Đã từ chối điểm danh');
+      await load();
+      setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    } catch (err) {
+      console.error(err);
+      toast.error('Từ chối thất bại');
+    }
+  };
+
+  const handleExport = async (options = {}) => {
+    try {
+      // exportApprovedDiemDanh returns either a Blob, or { blob, filename }
+      const result = await exportApprovedDiemDanh(options);
+      let blob; let filename;
+      if (result && result.blob) {
+        blob = result.blob;
+        filename = result.filename || options?.filename || exportFilename || 'diem_danh_duyet.csv';
+      } else {
+        blob = result;
+        filename = options?.filename || exportFilename || 'diem_danh_duyet.csv';
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Đã xuất file CSV');
+    } catch (err) {
+      console.error('Export error', err);
+      toast.error('Không thể xuất file');
+    }
+  };
+
+  if (loading) return <div className="p-6">Đang tải...</div>;
+
+  // group records by activity id (id_hd_tham_du)
+  const grouped = activities.map(act => {
+    const rows = records.filter(r => String(r.id_hd) === String(act.id_hd_tham_du) || String(r.id_hd_tham_du) === String(act.id_hd_tham_du));
+    return { activity: act, rows };
+  }).filter(g => g.rows.length > 0);
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const isSelected = (id) => selectedIds.has(id);
+
+  const toggleSelectAllInGroup = (rows) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      const allSelected = rows.every(r => s.has(r.id));
+      if (allSelected) {
+        // remove
+        rows.forEach(r => s.delete(r.id));
+      } else {
+        rows.forEach(r => s.add(r.id));
+      }
+      return s;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const openBulkConfirm = (type) => {
+    if (selectedIds.size === 0) {
+      toast('Vui lòng chọn ít nhất một bản ghi');
+      return;
+    }
+    setBulkActionType(type);
+    setShowBulkModal(true);
+  };
+
+  const performBulkAction = async () => {
+    if (!bulkActionType) return;
+    const ids = Array.from(selectedIds);
+    setShowBulkModal(false);
+    try {
+      const results = await Promise.allSettled(ids.map(id => apiFetch(`/api/diem-danh/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: bulkActionType === 'approve' ? 1 : -1 }) })));
+      let success = 0, fail = 0;
+      results.forEach(r => { if (r.status === 'fulfilled') success++; else fail++; });
+      if (success > 0) toast.success(`Thành công: ${success}, Thất bại: ${fail}`);
+      if (fail > 0) toast.error(`${fail} bản ghi thất bại`);
+      // reload
+      await load();
+      // clear only the ones processed
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Bulk action error', err);
+      toast.error('Lỗi khi cập nhật trạng thái');
+    } finally {
+      setBulkActionType(null);
+    }
+  };
+
+  const toggleExportField = (field) => {
+    setExportFields(prev => {
+      const s = new Set(prev);
+      if (s.has(field)) s.delete(field); else s.add(field);
+      return Array.from(s);
+    });
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Quản lý Điểm Danh (theo hoạt động tham dự)</h2>
+        <div className="space-x-2">
+          <button onClick={() => setShowExportModal(true)} className="px-3 py-1 bg-green-600 text-white rounded">Tùy chọn CSV / Xuất</button>
+          <button onClick={load} className="px-3 py-1 bg-blue-600 text-white rounded">Tải lại</button>
+        </div>
+      </div>
+
+      {grouped.length === 0 ? (
+        <div className="bg-white rounded shadow p-6">Không có bản ghi điểm danh nào.</div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map((g, idx) => (
+            <div key={g.activity.id_hd_tham_du} className="bg-white rounded shadow">
+              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setOpenIdx(openIdx === idx ? null : idx)}>
+                <div>
+                  <div className="text-lg font-semibold">{g.activity.ten_hd}</div>
+                  <div className="text-sm text-gray-500">ID: {g.activity.id_hd_tham_du}</div>
+                </div>
+                <div className="text-sm text-gray-600">{g.rows.length} bản ghi</div>
+              </div>
+
+              {openIdx === idx && (
+                <div className="p-4 border-t">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <button onClick={() => toggleSelectAllInGroup(g.rows)} className="px-3 py-1 bg-gray-100 rounded text-sm">Chọn/Bỏ chọn tất cả</button>
+                      <button onClick={() => openBulkConfirm('approve')} className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm">Duyệt đã chọn</button>
+                      <button onClick={() => openBulkConfirm('reject')} className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm">Từ chối đã chọn</button>
+                      <button onClick={clearSelection} className="px-3 py-1 bg-gray-50 text-gray-700 rounded text-sm">Bỏ chọn</button>
+                    </div>
+                    <div className="text-sm text-gray-500">{selectedIds.size} đã chọn</div>
+                  </div>
+
+                  <table className="min-w-full divide-y">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2"> <span className="sr-only">Chọn</span> </th>
+                        <th className="px-4 py-2">ID</th>
+                        <th className="px-4 py-2">Mã SV</th>
+                        <th className="px-4 py-2">Họ tên</th>
+                        <th className="px-4 py-2">Thời gian</th>
+                        <th className="px-4 py-2">Trạng thái</th>
+                        <th className="px-4 py-2">Ảnh</th>
+                        <th className="px-4 py-2">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {g.rows.map(r => (
+                        <tr key={r.id}>
+                          <td className="px-4 py-2"><input type="checkbox" checked={isSelected(r.id)} onChange={() => toggleSelect(r.id)} /></td>
+                          <td className="px-4 py-2">{r.id}</td>
+                          <td className="px-4 py-2">{r.ma_sv}</td>
+                          <td className="px-4 py-2">{r.ho_ten}</td>
+                          <td className="px-4 py-2">{r.thoi_gian ? new Date(r.thoi_gian).toLocaleString('vi-VN') : ''}</td>
+                          <td className="px-4 py-2">{r.trang_thai === 1 ? 'Đã duyệt' : (r.trang_thai === -1 ? 'Từ chối' : 'Chờ duyệt')}</td>
+                          <td className="px-4 py-2">{r.anh_preview ? <img src={r.anh_preview} alt="img" className="max-h-20"/> : 'N/A'}</td>
+                          <td className="px-4 py-2">
+                            {r.trang_thai !== 1 && (<button onClick={() => handleApprove(r.id)} className="px-2 py-1 bg-green-100 text-green-700 rounded mr-2">Duyệt</button>)}
+                            {r.trang_thai !== -1 && (<button onClick={() => handleReject(r.id)} className="px-2 py-1 bg-red-100 text-red-700 rounded">Từ chối</button>)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bulk action confirm modal */}
+      <ConfirmDialog
+        isOpen={showBulkModal}
+        title={bulkActionType === 'approve' ? 'Duyệt các bản ghi đã chọn' : 'Từ chối các bản ghi đã chọn'}
+        message={`Bạn có chắc muốn ${bulkActionType === 'approve' ? 'duyệt' : 'từ chối'} ${selectedIds.size} bản ghi đã chọn?`}
+        confirmText={bulkActionType === 'approve' ? 'Duyệt' : 'Từ chối'}
+        cancelText="Hủy"
+        onConfirm={() => performBulkAction()}
+        onCancel={() => setShowBulkModal(false)}
+      />
+
+      {/* Export modal */}
+      <Modal isOpen={showExportModal} onClose={() => setShowExportModal(false)} title="Tùy chọn xuất CSV" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tên file</label>
+            <input value={exportFilename} onChange={e => setExportFilename(e.target.value)} className="w-full px-3 py-2 border rounded" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Chọn cột</label>
+            <div className="grid grid-cols-2 gap-2">
+              {availableFields.map(f => (
+                <label key={f} className="flex items-center space-x-2">
+                  <input type="checkbox" checked={exportFields.includes(f)} onChange={() => toggleExportField(f)} />
+                  <span className="text-sm">{f}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <button onClick={() => setShowExportModal(false)} className="px-3 py-2 bg-gray-200 rounded">Hủy</button>
+            <button onClick={async () => { const res = await handleExport({ filename: exportFilename, fields: exportFields }); setShowExportModal(false); }} className="px-3 py-2 bg-green-600 text-white rounded">Xuất</button>
+          </div>
+        </div>
+      </Modal>
+
+    </div>
+  );
+}

@@ -1931,6 +1931,36 @@ app.get('/api/dki-tham-du/class', auth, async (req, res) => {
   }
 });
 
+app.get('/api/diem-danh/stats', auth, async (req, res) => {
+  try {
+    // Aggregate counts per activity id (id_hd)
+    const [rows] = await pool.execute(
+      `SELECT 
+          dd.id_hd AS id_hd_tham_du,
+          SUM(CASE WHEN dd.trang_thai = 0 THEN 1 ELSE 0 END) AS pending,
+          SUM(CASE WHEN dd.trang_thai = 1 THEN 1 ELSE 0 END) AS approved,
+          SUM(CASE WHEN dd.trang_thai = -1 THEN 1 ELSE 0 END) AS rejected,
+          COUNT(*) AS total
+        FROM diem_danh dd
+        GROUP BY dd.id_hd`
+    );
+
+    // Cast numbers and ensure id is string to be consistent with frontend
+    const data = (rows || []).map(r => ({
+      id_hd_tham_du: r.id_hd_tham_du != null ? String(r.id_hd_tham_du) : null,
+      pending: Number(r.pending || 0),
+      approved: Number(r.approved || 0),
+      rejected: Number(r.rejected || 0),
+      total: Number(r.total || 0)
+    }));
+
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/diem-danh/stats error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 // PUT /api/dki-tham-du/:ma_sv/:id_hd - CBL approves/rejects a registration
 app.put('/api/dki-tham-du/:ma_sv/:id_hd', auth, async (req, res) => {
   try {
@@ -1959,7 +1989,7 @@ app.put('/api/dki-tham-du/:ma_sv/:id_hd', auth, async (req, res) => {
       }
     }
 
-    if (typeof trang_thai !== 'number' || ![0,1,-1].includes(trang_thai)) {
+    if (typeof trang_thai !== 'number' || ![0, 1, -1].includes(trang_thai)) {
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
@@ -2068,7 +2098,7 @@ app.post('/api/dang-ky-thi', auth, async (req, res) => {
     if (!hdtRows || hdtRows.length === 0) {
       return res.status(404).json({ message: 'Hoạt động thi không tồn tại' });
     }
-    
+
     // Cross-check: if student already registered for exam (dang_ky_thi) for same id_hd, block
     const [conflict] = await pool.execute('SELECT ma_sv FROM dki_tham_du WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
     if (conflict && conflict.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký tham dự hoạt động này, không thể đăng ký thi cùng hoạt động' });
@@ -2368,56 +2398,236 @@ app.get('/api/thanh-vien-nhom/:id_or_ten_nhom', auth, async (req, res) => {
 // ===== DIEM_DANH (Attendance) =====
 // GET /api/diem-danh
 app.get('/api/diem-danh', auth, async (req, res) => {
-    try {
-        const role = (req.user.role || '').toLowerCase();
-        const ma_sv = req.user.ma_ca_nhan;
-        if (role === 'admin') {
-            const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh ORDER BY thoi_gian DESC');
-            return res.json(rows || []);
-        }
-        const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh WHERE ma_sv = ? ORDER BY thoi_gian DESC', [ma_sv]);
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/diem-danh error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
+  try {
+    const role = (req.user.role || '').toLowerCase();
+    const ma_sv = req.user.ma_ca_nhan;
+    if (role === 'admin') {
+      const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh ORDER BY thoi_gian DESC');
+      return res.json(rows || []);
     }
+    const [rows] = await pool.execute('SELECT id, ma_sv, id_hd AS id_hd_tham_du, trang_thai, thoi_gian, anh_minh_chung FROM diem_danh WHERE ma_sv = ? ORDER BY thoi_gian DESC', [ma_sv]);
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/diem-danh error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// GET /api/diem-danh/activity/:id_hd_tham_du - get attendance records for a specific activity
+app.get('/api/diem-danh/activity/:id_hd_tham_du', auth, async (req, res) => {
+  try {
+    const { id_hd_tham_du } = req.params;
+    const [rows] = await pool.execute(
+      `SELECT dd.id, dd.ma_sv, tk.ho_ten, sv.lop, dd.trang_thai, dd.thoi_gian, dd.anh_minh_chung
+             FROM diem_danh dd
+              LEFT JOIN tai_khoan tk ON dd.ma_sv = tk.ma_ca_nhan
+              LEFT JOIN sinh_vien sv ON dd.ma_sv = sv.ma_sinh_vien
+             WHERE dd.id_hd = ?
+             ORDER BY dd.thoi_gian DESC`,
+      [id_hd_tham_du]
+    );
+    res.json(rows || []);
+  } catch (err) {
+    console.error('GET /api/diem-danh/activity/:id_hd_tham_du error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
 });
 
 // POST /api/diem-danh - body: { id_hd_tham_du, anh_minh_chung, ma_sv? }
 app.post('/api/diem-danh', auth, async (req, res) => {
-    try {
-        const { id_hd_tham_du, anh_minh_chung, ma_sv: providedMa } = req.body || {};
-        if (!id_hd_tham_du || !anh_minh_chung) return res.status(400).json({ message: 'Thiếu id_hd_tham_du hoặc ảnh minh chứng' });
-        const ma_sv = providedMa && String(providedMa).trim() ? String(providedMa).trim() : req.user.ma_ca_nhan;
-        const [hdtRows] = await pool.execute('SELECT id_hd_tham_du FROM hoat_dong_tham_du WHERE id_hd_tham_du = ? LIMIT 1', [id_hd_tham_du]);
-        if (!hdtRows || hdtRows.length === 0) return res.status(404).json({ message: 'Hoạt động tham dự không tồn tại' });
-        const [exist] = await pool.execute('SELECT id FROM diem_danh WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd_tham_du, ma_sv]);
-        if (exist && exist.length > 0) return res.status(400).json({ message: 'Bạn đã điểm danh cho hoạt động này' });
-        await pool.execute('INSERT INTO diem_danh (ma_sv, id_hd, trang_thai, thoi_gian, anh_minh_chung) VALUES (?, ?, ?, NOW(), ?)', [ma_sv, id_hd_tham_du, 0, anh_minh_chung]);
-        res.status(201).json({ message: 'Đã gửi yêu cầu điểm danh. Chờ duyệt.' });
-    } catch (err) {
-        console.error('POST /api/diem-danh error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
+  try {
+    const { id_hd_tham_du, anh_minh_chung, ma_sv: providedMa } = req.body || {};
+    if (!id_hd_tham_du || !anh_minh_chung) return res.status(400).json({ message: 'Thiếu id_hd_tham_du hoặc ảnh minh chứng' });
+    const ma_sv = providedMa && String(providedMa).trim() ? String(providedMa).trim() : req.user.ma_ca_nhan;
+    const [hdtRows] = await pool.execute('SELECT id_hd_tham_du FROM hoat_dong_tham_du WHERE id_hd_tham_du = ? LIMIT 1', [id_hd_tham_du]);
+    if (!hdtRows || hdtRows.length === 0) return res.status(404).json({ message: 'Hoạt động tham dự không tồn tại' });
+    const [exist] = await pool.execute('SELECT id FROM diem_danh WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd_tham_du, ma_sv]);
+    if (exist && exist.length > 0) return res.status(400).json({ message: 'Bạn đã điểm danh cho hoạt động này' });
+    await pool.execute('INSERT INTO diem_danh (ma_sv, id_hd, trang_thai, thoi_gian, anh_minh_chung) VALUES (?, ?, ?, NOW(), ?)', [ma_sv, id_hd_tham_du, 0, anh_minh_chung]);
+    res.status(201).json({ message: 'Đã gửi yêu cầu điểm danh. Chờ duyệt.' });
+  } catch (err) {
+    console.error('POST /api/diem-danh error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
 });
+
+// PUT /api/diem-danh/:id - approve/reject attendance (trang_thai: 1 approved, -1 rejected)
+app.put('/api/diem-danh/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { trang_thai } = req.body || {};
+    if (typeof trang_thai !== 'number' || ![1, -1].includes(trang_thai)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+    }
+    const ma = req.user && req.user.ma_ca_nhan;
+    const isBtcUser = await isUserBtc(ma);
+    const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+    if (!isAdmin && !isBtcUser) {
+      return res.status(403).json({ message: 'Không có quyền duyệt điểm danh' });
+    }
+    const [rows] = await pool.execute('SELECT id FROM diem_danh WHERE id = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Bản ghi điểm danh không tồn tại' });
+    await pool.execute('UPDATE diem_danh SET trang_thai = ? WHERE id = ?', [trang_thai, id]);
+    res.json({ message: 'Cập nhật trạng thái điểm danh thành công' });
+  } catch (err) {
+    console.error('PUT /api/diem-danh/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
 
 // DELETE /api/diem-danh/:id
 app.delete('/api/diem-danh/:id', auth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const uid = req.user.ma_ca_nhan;
-        const role = (req.user.role || '').toLowerCase();
-        const [rows] = await pool.execute('SELECT id, ma_sv, trang_thai FROM diem_danh WHERE id = ? LIMIT 1', [id]);
-        if (!rows || rows.length === 0) return res.status(404).json({ message: 'Bản ghi điểm danh không tồn tại' });
-        const rec = rows[0];
-        if (role !== 'admin' && rec.ma_sv !== uid) return res.status(403).json({ message: 'Không có quyền hủy điểm danh này' });
-        if (rec.trang_thai === 1) return res.status(400).json({ message: 'Không thể hủy điểm danh đã được duyệt' });
-        await pool.execute('DELETE FROM diem_danh WHERE id = ?', [id]);
-        res.json({ message: 'Đã hủy điểm danh' });
-    } catch (err) {
-        console.error('DELETE /api/diem-danh/:id error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
+  try {
+    const { id } = req.params;
+    const uid = req.user.ma_ca_nhan;
+    const role = (req.user.role || '').toLowerCase();
+    const [rows] = await pool.execute('SELECT id, ma_sv, trang_thai FROM diem_danh WHERE id = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Bản ghi điểm danh không tồn tại' });
+    const rec = rows[0];
+    if (role !== 'admin' && rec.ma_sv !== uid) return res.status(403).json({ message: 'Không có quyền hủy điểm danh này' });
+    if (rec.trang_thai === 1) return res.status(400).json({ message: 'Không thể hủy điểm danh đã được duyệt' });
+    await pool.execute('DELETE FROM diem_danh WHERE id = ?', [id]);
+    res.json({ message: 'Đã hủy điểm danh' });
+  } catch (err) {
+    console.error('DELETE /api/diem-danh/:id error:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// --- New: Export approved attendance CSV (server-side) ---
+app.get('/api/diem-danh/export', auth, async (req, res) => {
+  try {
+    console.log('[DEBUG] GET /api/diem-danh/export called, query=', req.query, 'user=', req.user && req.user.ma_ca_nhan);
+
+    const ma = req.user && req.user.ma_ca_nhan;
+    const isBtcUser = await isUserBtc(ma);
+    const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+    if (!isAdmin && !isBtcUser) {
+      return res.status(403).json({ message: 'Không có quyền xuất điểm danh' });
     }
+
+    const { filename = 'diem_danh_duyet_v2.csv', fields = '', id_hd, trang_thai } = req.query || {};
+    const selectedFields = Array.isArray(fields) ? fields : String(fields).split(',').map(f => f.trim()).filter(f => f);
+
+    // Cho phép các trường bao gồm tên hoạt động và tên sinh viên
+    const allowedFields = ['id', 'ma_sv', 'ho_ten', 'id_hd', 'ten_hd', 'thoi_gian', 'trang_thai', 'anh_minh_chung'];
+    const exportFields = selectedFields.length > 0 ? selectedFields.filter(f => allowedFields.includes(f)) : allowedFields;
+    if (exportFields.length === 0) {
+      return res.status(400).json({ message: 'Không có trường hợp lệ để xuất' });
+    }
+
+    // Map key -> label tiếng Việt (dùng cho header CSV)
+    const fieldLabels = {
+      id: 'ID',
+      ma_sv: 'Mã sinh viên',
+      ho_ten: 'Tên sinh viên',
+      id_hd: 'ID hoạt động',
+      ten_hd: 'Tên hoạt động',
+      thoi_gian: 'Thời gian',
+      trang_thai: 'Trạng thái',
+      anh_minh_chung: 'Ảnh minh chứng'
+    };
+
+    // Build SELECT columns (alias nếu cần)
+    const selectColumns = exportFields.map(f => {
+      if (f === 'ho_ten') return 'COALESCE(tk.ho_ten, sv.ho_ten) AS ho_ten';
+      if (f === 'ten_hd') return 'hd.ten_hd AS ten_hd';
+      return `dd.${f}`;
+    }).join(', ');
+
+    // SQL với LEFT JOIN để tránh mất bản ghi khi liên quan bị thiếu
+    let sql = `
+      SELECT ${selectColumns}
+      FROM diem_danh dd
+      LEFT JOIN tai_khoan tk ON dd.ma_sv = tk.ma_ca_nhan
+      LEFT JOIN sinh_vien sv ON dd.ma_sv = sv.ma_sinh_vien
+      LEFT JOIN hoat_dong_tham_du hd ON dd.id_hd = hd.id_hd_tham_du
+      WHERE 1=1
+    `;
+
+    const params = [];
+    // Nếu có param trang_thai -> dùng; nếu không -> mặc định chỉ lấy đã duyệt
+    if (typeof trang_thai !== 'undefined' && String(trang_thai).trim() !== '') {
+      sql += ' AND dd.trang_thai = ?';
+      params.push(Number(trang_thai));
+    } else {
+      sql += ' AND dd.trang_thai = 1';
+    }
+
+    if (typeof id_hd !== 'undefined' && id_hd !== null && String(id_hd).trim() !== '') {
+      sql += ' AND dd.id_hd = ?';
+      params.push(id_hd);
+    }
+
+    sql += ' ORDER BY dd.thoi_gian DESC';
+
+    console.debug('[DEBUG] export SQL:', sql, 'params=', params);
+
+    const [rows] = await pool.execute(sql, params);
+
+    console.debug('[DEBUG] export rows count=', Array.isArray(rows) ? rows.length : 0);
+    if (Array.isArray(rows) && rows.length > 0) {
+      console.debug('[DEBUG] sample row:', rows[0]);
+    }
+
+    // Build CSV lines (header + rows)
+    const csvLines = [];
+    // Header: dùng label tiếng Việt (theo order exportFields)
+    csvLines.push(exportFields.map(f => fieldLabels[f] || f).join(','));
+
+    for (const row of rows) {
+      const line = exportFields.map(f => {
+        let val = row[f];
+
+        // Convert special fields to readable strings
+        if (f === 'anh_minh_chung') {
+          val = (val && val.length > 0) ? 'Có' : 'Không';
+        }
+        if (f === 'trang_thai') {
+          if (val === 1) val = 'Đã duyệt';
+          else if (val === -1) val = 'Từ chối';
+          else val = 'Chưa duyệt';
+        }
+
+        // If value is a Date object (mysql returns Date or string), convert to ISO/local string
+        if (val instanceof Date) {
+          val = val.toISOString();
+        }
+
+        if (val === null || val === undefined) val = '';
+
+        // Escape if necessary: wrap in double quotes and escape inner quotes
+        if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r'))) {
+          val = `"${val.replace(/"/g, '""')}"`;
+        }
+
+        return val;
+      }).join(',');
+      csvLines.push(line);
+    }
+
+    // Join with CRLF and prepend UTF-8 BOM so Excel (Windows) mở đúng encoding
+    const csvContent = csvLines.join('\r\n');
+    const bom = '\uFEFF';
+    const out = bom + csvContent;
+    const buf = Buffer.from(out, 'utf8');
+
+    // Use RFC 5987 filename* to support UTF-8 filenames
+    const safeFilename = encodeURIComponent(filename);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Length', buf.length);
+
+    return res.send(buf);
+
+  } catch (err) {
+    console.error('GET /api/diem-danh/export error:', err?.stack || err);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.status(500).json({ message: 'Lỗi server', error: err?.message || String(err) });
+    }
+    return res.status(500).json({ message: 'Lỗi server' });
+  }
 });
 
 app.listen(PORT, () => {
