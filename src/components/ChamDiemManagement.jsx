@@ -1,0 +1,737 @@
+// ChamDiemManagement.jsx
+import React, { useEffect, useState } from 'react';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import { useApp } from '../hooks/useApp';
+import { apiFetch } from '../services/api';
+import { fetchHoatDong } from '../services/hoat-dong';
+import { fetchHoatDongThiByGiangVien } from '../services/ban-giam-khao';
+import {
+    fetchThanhVienNhom
+} from '../services/dang-ky-thi'; // có trong mẫu bạn gửi
+
+// Import cham-diem service helpers
+import { upsertChamDiem, deleteChamDiem } from '../services/cham-diem';
+
+export default function ChamDiemManagement() {
+    const { state } = useApp();
+    const { config } = state;
+
+    const [hdtList, setHdtList] = useState([]); // hoạt động thi (ban_giam_khao entries)
+    const [hdList, setHdList] = useState([]);   // metadata hoạt động (ten_hd, tg_bat_dau...)
+    const [registrations, setRegistrations] = useState([]); // danh sách đăng ký cho tất cả hoạt động liên quan (cache)
+    const [chamDiemList, setChamDiemList] = useState([]); // danh sách chấm điểm
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 9;
+
+    const [loading, setLoading] = useState(false);
+    const [regLoading, setRegLoading] = useState(false);
+
+    // Modal danh sách đăng ký cho 1 hoạt động
+    const [showRegListModal, setShowRegListModal] = useState(false);
+    const [selectedActivity, setSelectedActivity] = useState(null);
+    const [activityRegs, setActivityRegs] = useState([]);
+
+    // Modal thành viên nhóm
+    const [showMembersModal, setShowMembersModal] = useState(false);
+    const [selectedReg, setSelectedReg] = useState(null);
+    const [groupMembers, setGroupMembers] = useState([]);
+
+    // Modal nhập điểm (rubric)
+    const [showRubricModal, setShowRubricModal] = useState(false);
+    const [rubric, setRubric] = useState([]); // [{ id, title, max_point, description }]
+    const [scores, setScores] = useState({}); // { criterionId: score }
+    const [overallComment, setOverallComment] = useState('');
+    const [savingScore, setSavingScore] = useState(false);
+
+    // Thông tin user (để lấy ma_giang_vien)
+    const [me, setMe] = useState(null);
+
+    // --- Helpers để lấy tên hoạt động ---
+    const getHoatDongInfo = (id_hd) => {
+        return hdList.find(h => Number(h.id_hd) === Number(id_hd)) || {};
+    };
+
+    // --- Tải dữ liệu ban đầu ---
+    const refreshData = async () => {
+        try {
+            setLoading(true);
+            // 1) lấy thông tin người dùng
+            const meResp = await apiFetch('/api/me'); // giả sử endpoint này trả về user object { ma_ca_nhan, ho_ten, ... }
+            setMe(meResp || null);
+
+            // 2) nếu là BGK -> lấy list hoạt động mà BGK phụ trách
+            let bgkHdt = [];
+            if (meResp?.ma_ca_nhan) {
+                try {
+                    bgkHdt = await fetchHoatDongThiByGiangVien(meResp.ma_ca_nhan);
+                } catch (e) {
+                    console.warn('fetchHoatDongThiByGiangVien failed', e);
+                }
+            }
+
+            // 3) lấy metadata hoạt động chung (tên, tg_bat_dau...) dùng để hiển thị
+            const hdData = await fetchHoatDong();
+
+            // 4) lấy tất cả đăng ký (server nên có endpoint trả về đăng ký theo hoạt động/hoặc tất cả đăng ký của các hoạt động do BGK phụ trách)
+            // Mình cố gắng dùng endpoint hợp lý: /api/dang-ky-thi/bgk/:ma_giang_vien
+            let regs = [];
+            try {
+                // Nếu backend có endpoint trả về đăng ký theo mã BGK (tối ưu) bạn có thể đổi
+                // Thay đổi: sử dụng hyphenated path implemented on server
+                if (meResp?.ma_ca_nhan) {
+                    const maybeRegs = await apiFetch(`/api/dang-ky-thi/bgk/${meResp.ma_ca_nhan}`);
+                    regs = Array.isArray(maybeRegs) ? maybeRegs : [];
+                } else {
+                    regs = [];
+                }
+            } catch (err) {
+                // Fallback: lấy đăng ký theo từng hoạt động trong bgkHdt
+                regs = [];
+                for (const h of (bgkHdt || [])) {
+                    try {
+                        const r = await apiFetch(`/api/dang-ky-thi/activity/${h.id_hd}`);
+                        if (Array.isArray(r)) regs.push(...r);
+                    } catch (e) {
+                        console.warn('Không lấy được đăng ký cho activity', h.id_hd, e);
+                    }
+                }
+            }
+
+            // 5) lấy danh sách chấm điểm (một lần) để tính trạng thái đã chấm
+            let cds = [];
+            try {
+                const maybeCds = await apiFetch('/api/cham_diem');
+                cds = Array.isArray(maybeCds) ? maybeCds : [];
+            } catch (e) {
+                console.warn('Không lấy được danh sách chấm điểm', e);
+                cds = [];
+            }
+
+            setHdtList(Array.isArray(bgkHdt) ? bgkHdt : []);
+            setHdList(Array.isArray(hdData) ? hdData : []);
+            setRegistrations(Array.isArray(regs) ? regs : []);
+            setChamDiemList(cds);
+        } catch (err) {
+            console.error('refreshData error:', err);
+            toast.error('Không thể tải dữ liệu');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            if (!mounted) return;
+            await refreshData();
+        })();
+        return () => { mounted = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // --- Kiểm tra và sắp xếp đăng ký (nếu cần) ---
+    const sortRegistrations = (regs) => {
+        // Nếu cần sắp xếp đặc biệt (ví dụ theo trạng thái), làm ở đây. Hiện trả thẳng.
+        return regs;
+    };
+
+    // --- Xử lý khi click "Danh sách" trên card ---
+    const handleViewRegistrations = async (hdt) => {
+        try {
+            setRegLoading(true);
+            // Lấy đăng ký cho hoạt động này từ cache nếu có, hoặc call endpoint
+            let regs = registrations.filter(r => Number(r.id_hd) === Number(hdt.id_hd));
+            if (!regs || regs.length === 0) {
+                // gọi endpoint: /api/dang-ky-thi/activity/:id_hd
+                try {
+                    const r = await apiFetch(`/api/dang-ky-thi/activity/${hdt.id_hd}`);
+                    regs = Array.isArray(r) ? r : [];
+                } catch (err) {
+                    console.warn('Không lấy được đăng ký theo activity, trả rỗng', err);
+                    regs = [];
+                }
+            }
+
+            regs = sortRegistrations(regs);
+            setActivityRegs(regs);
+            setSelectedActivity(hdt);
+            setShowRegListModal(true);
+        } catch (err) {
+            console.error('Error viewing registrations:', err);
+            toast.error('Không thể tải danh sách đăng ký');
+        } finally {
+            setRegLoading(false);
+        }
+    };
+
+    const handleViewGroupMembers = async (reg) => {
+        if (reg.hinh_thuc !== 'Nhóm') {
+            toast.error('Chỉ có thể xem thành viên của đơn nhóm');
+            return;
+        }
+        try {
+            const members = await fetchThanhVienNhom(reg.id);
+            setGroupMembers(Array.isArray(members) ? members : []);
+            setSelectedReg(reg);
+            setShowMembersModal(true);
+        } catch (err) {
+            console.error('Error fetching group members:', err);
+            toast.error('Không thể tải danh sách thành viên');
+        }
+    };
+
+    // Helper: fetch existing cham_diem for a registration (returns null if none)
+    // Prefer local chamDiemList if populated
+    const fetchExistingChamDiemForRegistration = async (id_dang_ky) => {
+        try {
+            if (Array.isArray(chamDiemList) && chamDiemList.length > 0) {
+                return chamDiemList.find(cd => String(cd.id_dang_ky) === String(id_dang_ky)) || null;
+            }
+            const all = await apiFetch('/api/cham_diem');
+            if (!Array.isArray(all)) return null;
+            return all.find(cd => String(cd.id_dang_ky) === String(id_dang_ky)) || null;
+        } catch (err) {
+            console.warn('fetchExistingChamDiemForRegistration error', err);
+            return null;
+        }
+    };
+
+    // Delete current BGK's score for selected registration
+    const handleDeleteCurrentScore = async () => {
+        try {
+            if (!selectedReg || !selectedReg.id) return;
+            const rec = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(selectedReg.id) && String(cd.ma_bgk) === String(me?.ma_ca_nhan));
+            if (!rec) {
+                toast.error('Không tìm thấy điểm của bạn để xóa');
+                return;
+            }
+            await deleteChamDiem(rec.id);
+            toast.success('Đã xóa điểm của bạn');
+            setShowRubricModal(false);
+            await refreshData();
+        } catch (err) {
+            console.error('handleDeleteCurrentScore error', err);
+            toast.error('Xóa điểm thất bại');
+        }
+    };
+
+    // --- Xử lý mở modal Rubric để nhập điểm ---
+    const handleOpenRubric = async (reg) => {
+        // reg: đối tượng đăng ký (có id, id_hd, hinh_thuc, ma_sv, ten_nhom, ...)
+        try {
+            setRubric([]);
+            setScores({});
+            setOverallComment('');
+            setSavingScore(false);
+            setShowRubricModal(true);
+            setSelectedReg(reg);
+
+            // New behavior: fetch hoat_dong_thi list to get id_rubric for this activity, then fetch chi_tiet_rubric
+            try {
+                const allHdt = await apiFetch('/api/hoat_dong_thi');
+                const target = Array.isArray(allHdt) ? allHdt.find(x => String(x.id_hd) === String(reg.id_hd)) : null;
+                const id_rubric = target?.id_rubric ?? null;
+
+                // fetch existing chấm điểm (if any) prefer local cache
+                const existing = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(reg.id)) || await fetchExistingChamDiemForRegistration(reg.id);
+
+                if (id_rubric) {
+                    // fetch rubric details
+                    const details = await apiFetch(`/api/chi_tiet_rubric/${id_rubric}`);
+                    if (Array.isArray(details) && details.length > 0) {
+                        // Map server fields to UI format: expect { tieu_chi, diem_toi_da }
+                        const mapped = details.map((d, idx) => ({
+                            id: (d.tieu_chi && String(d.tieu_chi).trim()) || `c_${idx}`,
+                            title: d.tieu_chi || `Tiêu chí ${idx + 1}`,
+                            max_point: Number(d.diem_toi_da || 0),
+                            description: ''
+                        }));
+                        setRubric(mapped);
+
+                        // init scores
+                        const initScores = {};
+                        if (existing && typeof existing.diem === 'number') {
+                            // Distribute existing total across criteria by max_point weights
+                            const sumMax = mapped.reduce((s, c) => s + (Number(c.max_point) || 0), 0) || mapped.length;
+                            let remaining = Number(existing.diem) || 0;
+                            mapped.forEach((c, i) => {
+                                if (i < mapped.length - 1) {
+                                    const share = sumMax > 0 ? (existing.diem * (c.max_point || 0) / sumMax) : (existing.diem / mapped.length);
+                                    const rounded = Math.round(share * 100) / 100;
+                                    initScores[c.id] = rounded;
+                                    remaining = Math.round((remaining - rounded) * 100) / 100;
+                                } else {
+                                    // last one gets remaining to ensure sum matches total (handle rounding)
+                                    initScores[c.id] = Math.round(remaining * 100) / 100;
+                                }
+                            });
+                            setScores(initScores);
+                            setOverallComment(existing.nhan_xet || '');
+                        } else {
+                            mapped.forEach(c => { initScores[c.id] = 0; });
+                            setScores(initScores);
+                            setOverallComment('');
+                        }
+                    } else {
+                        // fallback: single total criterion
+                        const fallback = [{ id: 'total', title: 'Điểm tổng', description: '', max_point: 10 }];
+                        setRubric(fallback);
+                        if (existing && typeof existing.diem === 'number') {
+                            setScores({ total: existing.diem });
+                            setOverallComment(existing.nhan_xet || '');
+                        } else {
+                            setScores({ total: 0 });
+                            setOverallComment('');
+                        }
+                    }
+                } else {
+                    // no rubric linked
+                    const fallback = [{ id: 'total', title: 'Điểm tổng', description: '', max_point: 10 }];
+                    setRubric(fallback);
+                    if (existing && typeof existing.diem === 'number') {
+                        setScores({ total: existing.diem });
+                        setOverallComment(existing.nhan_xet || '');
+                    } else {
+                        setScores({ total: 0 });
+                        setOverallComment('');
+                    }
+                }
+            } catch (err) {
+                console.warn('Không lấy được chi tiết rubric, dùng fallback', err);
+                const fallback = [{ id: 'total', title: 'Điểm tổng', description: '', max_point: 10 }];
+                setRubric(fallback);
+                setScores({ total: 0 });
+                setOverallComment('');
+            }
+        } catch (err) {
+            console.error('handleOpenRubric error', err);
+            toast.error('Không thể mở form nhập điểm');
+        }
+    };
+
+    // --- Xử lý thay đổi điểm cho 1 tiêu chí ---
+    const handleScoreChange = (criterionId, value, maxPoint) => {
+        // parse số, đảm bảo >=0 và <= maxPoint
+        let v = value === '' ? '' : value;
+        // allow empty to let user delete then type
+        if (v === '') {
+            setScores(prev => ({ ...prev, [criterionId]: '' }));
+            return;
+        }
+        // parse float an toàn: compute digit by digit? follow requirement to avoid arithmetic mistakes:
+        // We'll parse carefully:
+        const parsed = parseFloat(v);
+        if (Number.isNaN(parsed)) return; // ignore invalid
+        let final = parsed;
+        if (final < 0) final = 0;
+        if (typeof maxPoint === 'number' && !Number.isNaN(maxPoint)) {
+            if (final > maxPoint) final = maxPoint;
+        }
+        // Round to 2 decimals
+        final = Math.round(final * 100) / 100;
+        setScores(prev => ({ ...prev, [criterionId]: final }));
+    };
+
+    // --- Tính tổng điểm theo scores & rubric.max_point ---
+    const computeTotal = () => {
+        // If rubric contains explicit weights or max_point sums, we simply sum scores
+        let total = 0;
+        for (const c of rubric) {
+            const id = c.id;
+            const sc = scores[id];
+            const num = (sc === '' || sc === undefined || sc === null) ? 0 : Number(sc);
+            if (!Number.isNaN(num)) {
+                total += num;
+            }
+        }
+        // Round 2 decimals
+        total = Math.round(total * 100) / 100;
+        return total;
+    };
+
+    // --- Lưu điểm (gọi POST /api/cham_diem) ---
+    const handleSaveScore = async () => {
+        try {
+            if (!selectedReg || !selectedReg.id) {
+                toast.error('Không có đăng ký hợp lệ để lưu điểm');
+                return;
+            }
+
+            // Kiểm tra nhận xét bắt buộc
+            if (!overallComment || overallComment.trim() === '') {
+                toast.error('Vui lòng nhập nhận xét tổng quan!');
+                return; // Dừng lưu
+            }
+
+            setSavingScore(true);
+
+            const total = computeTotal();
+
+            const payload = {
+                id_dang_ky: selectedReg.id,
+                diem: total,
+                nhan_xet: overallComment,
+                diem_chi_tiet: rubric.map(c => ({
+                    criterion_id: c.id,
+                    title: c.title,
+                    score: (scores[c.id] === '' || scores[c.id] === undefined) ? 0 : Number(scores[c.id]),
+                    max_point: c.max_point || null
+                }))
+            };
+
+            const resp = await upsertChamDiem(payload);
+
+            toast.success(resp?.message || 'Lưu điểm thành công');
+            setShowRubricModal(false);
+            await refreshData();
+        } catch (err) {
+            console.error('Lưu điểm lỗi', err);
+            toast.error(err?.message || 'Lỗi khi lưu điểm');
+        } finally {
+            setSavingScore(false);
+        }
+    };
+
+    // --- Xử lý xóa điểm (nếu muốn) ---
+    const handleDeleteScore = async (chamDiemId) => {
+        try {
+            if (!chamDiemId) return;
+            await deleteChamDiem(chamDiemId);
+            toast.success('Xóa điểm thành công');
+            await refreshData();
+        } catch (err) {
+            console.error('Xóa điểm lỗi', err);
+            toast.error('Không thể xóa điểm');
+        }
+    };
+
+    // --- Paging / displayed list ---
+    const totalPages = Math.max(1, Math.ceil(hdtList.length / itemsPerPage));
+    const displayedList = hdtList.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+    // --- Helpers hiển thị trạng thái (nếu cần) ---
+    const getTrangThaiColor = (trang_thai) => {
+        if (trang_thai === 1) return 'text-green-600 bg-green-50';
+        if (trang_thai === -1) return 'text-red-600 bg-red-50';
+        return 'text-yellow-600 bg-yellow-50';
+    };
+
+    const getTrangThaiText = (trang_thai) => {
+        if (trang_thai === 1) return 'Đã duyệt';
+        if (trang_thai === -1) return 'Từ chối';
+        return 'Chưa duyệt';
+    };
+
+    // --- UI render ---
+    return (
+        <div className="space-y-6 fade-in">
+            <div>
+                <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Chấm điểm - Ban Giám Khảo</h1>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-6">
+                    {loading ? (
+                        <div className="text-center py-8 text-gray-500">Đang tải...</div>
+                    ) : hdtList.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">Không có hoạt động thi nào bạn phụ trách</div>
+                    ) : (
+                        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                            {displayedList.map((hdt) => {
+                                const hd = getHoatDongInfo(hdt.id_hd) || {};
+                                const regsForHd = registrations.filter(r => Number(r.id_hd) === Number(hdt.id_hd));
+                                const pendingCount = regsForHd.filter(r => Number(r.trang_thai) === 0).length;
+                                const gradedCount = regsForHd.filter(r => (chamDiemList || []).some(cd => String(cd.id_dang_ky) === String(r.id))).length;
+                                const totalRegs = regsForHd.length;
+
+                                return (
+                                    <div key={hdt.id_hd} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900">{hd.ten_hd || hdt.ten_hd || `HD #${hdt.id_hd}`}</h3>
+                                            <div className="text-xs text-gray-500 mb-2">ID: {hdt.id_hd}</div>
+                                            <div className="text-sm text-gray-600 mb-2">Hình thức: {hd.hinh_thuc || hdt.hinh_thuc || 'N/A'}</div>
+                                            <div className="text-sm text-gray-500 mb-3">Thời gian: {hd.tg_bat_dau ? new Date(hd.tg_bat_dau).toLocaleString('vi-VN') : '—'}</div>
+
+                                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                                <div className="bg-yellow-50 p-2 rounded text-center border border-yellow-200">
+                                                    <div className="font-semibold text-yellow-700">{pendingCount}</div>
+                                                    <div className="text-yellow-600">Chờ</div>
+                                                </div>
+                                                <div className="bg-green-50 p-2 rounded text-center border border-green-200">
+                                                    <div className="font-semibold text-green-700">{gradedCount}</div>
+                                                    <div className="text-green-600">Đã chấm</div>
+                                                </div>
+                                                <div className="bg-blue-50 p-2 rounded text-center border border-blue-200">
+                                                    <div className="font-semibold text-blue-700">{totalRegs}</div>
+                                                    <div className="text-blue-600">Đăng ký</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 flex justify-end">
+                                            <button
+                                                onClick={() => handleViewRegistrations(hdt)}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                            >
+                                                Danh sách ({totalRegs})
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center space-x-3 py-4">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+                    {Array.from({ length: totalPages }).map((_, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setPage(idx + 1)}
+                            className={`px-3 py-1 rounded ${page === idx + 1 ? 'text-white' : 'bg-gray-100 text-gray-700'}`}
+                            style={page === idx + 1 ? { backgroundColor: config.accent_color } : {}}
+                        >
+                            {idx + 1}
+                        </button>
+                    ))}
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+                </div>
+            )}
+
+            {/* Modal: Danh sách đăng ký cho 1 hoạt động */}
+            <Modal
+                isOpen={showRegListModal}
+                onClose={() => setShowRegListModal(false)}
+                title={`Danh sách đăng ký: ${getHoatDongInfo(selectedActivity?.id_hd)?.ten_hd || ''}`}
+                size="lg"
+            >
+                <div className="space-y-4">
+                    {regLoading ? (
+                        <div className="text-center py-4 text-gray-500">Đang tải...</div>
+                    ) : activityRegs.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500">Không có đơn đăng ký nào</div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {activityRegs.map((reg) => {
+                                const regScoreByMe = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(reg.id) && String(cd.ma_bgk) === String(me?.ma_ca_nhan));
+                                const regScoreAny = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(reg.id));
+
+                                return (
+                                    <div key={reg.id} className="bg-white border rounded p-4 flex items-center justify-between hover:bg-gray-50">
+                                        <div className="flex-1">
+                                            {reg.hinh_thuc === 'Nhóm' ? (
+                                                <div>
+                                                    <div className="text-sm font-semibold text-gray-900">
+                                                        <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2">Nhóm</span>
+                                                        {reg.ten_nhom}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">Mã tham gia: {reg.ma_tham_gia}</div>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <div className="text-sm font-semibold text-gray-900">
+                                                        <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded mr-2">Cá nhân</span>
+                                                        {reg.ho_ten || reg.ma_sv}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">MSSV: {reg.ma_sv}</div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center space-x-3">
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded ${getTrangThaiColor(reg.trang_thai)}`}>
+                                                {getTrangThaiText(reg.trang_thai)}
+                                            </span>
+
+                                            {/* Score badge */}
+                                            {regScoreByMe ? (
+                                                <span className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded">Bạn: {regScoreByMe.diem}</span>
+                                            ) : regScoreAny ? (
+                                                <span className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded">Đã chấm: {regScoreAny.diem}</span>
+                                            ) : (
+                                                <span className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 rounded">Chưa chấm</span>
+                                            )}
+
+                                            {reg.hinh_thuc === 'Nhóm' && (
+                                                <button
+                                                    onClick={() => handleViewGroupMembers(reg)}
+                                                    className="px-2 py-1 text-xs bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100"
+                                                >
+                                                    Thành viên
+                                                </button>
+                                            )}
+
+                                            {/* Nút Nhập điểm */}
+                                            <button
+                                                onClick={() => handleOpenRubric(reg)}
+                                                className="px-3 py-1 text-xs rounded bg-yellow-600 text-white hover:bg-yellow-700"
+                                                disabled={reg.trang_thai === 0} // disable nếu chưa duyệt
+                                                // chặn pointer
+                                                style={reg.trang_thai === 0 ? { pointerEvents: 'none', opacity: 0.6 } : {}}
+                                            >
+                                                Nhập điểm
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    <div className="flex justify-end">
+                        <button
+                            onClick={() => setShowRegListModal(false)}
+                            className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal Thành viên nhóm */}
+            <Modal
+                isOpen={showMembersModal}
+                onClose={() => setShowMembersModal(false)}
+                title={`Thành viên nhóm: ${selectedReg?.ten_nhom || ''}`}
+                size="md"
+            >
+                <div className="space-y-4">
+                    <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                            <strong>Mã tham gia:</strong> {selectedReg?.ma_tham_gia}
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-3">Danh sách thành viên ({groupMembers.length})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {groupMembers.length > 0 ? (
+                                groupMembers.map((member) => (
+                                    <div key={member.ma_sv} className="flex items-center justify-between bg-gray-50 p-3 rounded border">
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-900">{member.ho_ten}</div>
+                                            <div className="text-xs text-gray-500">{member.ma_sv}</div>
+                                        </div>
+                                        {member.email && <div className="text-xs text-gray-500">{member.email}</div>}
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-gray-500">Chưa có thành viên</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <button onClick={() => setShowMembersModal(false)} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Đóng</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal Rubric / Nhập điểm */}
+            <Modal
+                isOpen={showRubricModal}
+                onClose={() => setShowRubricModal(false)}
+                title={`Nhập điểm: ${selectedReg?.hinh_thuc === 'Nhóm' ? selectedReg?.ten_nhom : (selectedReg?.ho_ten || selectedReg?.ma_sv || '')}`}
+                size="lg"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <p className="text-sm text-gray-600">Hoạt động: {getHoatDongInfo(selectedActivity?.id_hd)?.ten_hd || ''}</p>
+                        <p className="text-sm text-gray-600">Loại: {selectedReg?.hinh_thuc || '—'}</p>
+                    </div>
+
+                    {/* Status line */}
+                    <div>
+                        {selectedReg && (() => {
+                            const byMe = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(selectedReg.id) && String(cd.ma_bgk) === String(me?.ma_ca_nhan));
+                            const others = (chamDiemList || []).find(cd => String(cd.id_dang_ky) === String(selectedReg.id) && (!byMe || String(cd.ma_bgk) !== String(me?.ma_ca_nhan)));
+                            return (
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        {byMe ? (
+                                            <span className="px-2 py-1 text-sm font-semibold text-green-800 bg-green-100 rounded">Bạn đã nhập điểm: {byMe.diem}</span>
+                                        ) : others ? (
+                                            <span className="px-2 py-1 text-sm font-semibold text-blue-800 bg-blue-100 rounded">Đã chấm: {others.diem} (bởi {others.ma_bgk})</span>
+                                        ) : (
+                                            <span className="px-2 py-1 text-sm font-semibold text-yellow-800 bg-yellow-100 rounded">Chưa chấm</span>
+                                        )}
+                                    </div>
+                                    <div>
+                                        {byMe && (
+                                            <button onClick={handleDeleteCurrentScore} className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded">Xóa điểm của bạn</button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto space-y-3">
+                        {rubric.map((c) => (
+                            <div key={c.id} className="p-3 bg-gray-50 rounded border">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="text-sm font-semibold text-gray-900">{c.title}</div>
+                                        {c.description && <div className="text-xs text-gray-500 mt-1">{c.description}</div>}
+                                        <div className="text-xs text-gray-400 mt-1">Max: {c.max_point ?? '—'}</div>
+                                    </div>
+                                    <div className="ml-4 w-32">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max={c.max_point ?? 100}
+                                            value={scores[c.id] === undefined ? '' : scores[c.id]}
+                                            onChange={(e) => handleScoreChange(c.id, e.target.value, c.max_point)}
+                                            className="w-full border rounded px-2 py-1 text-right"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nhận xét chung</label>
+                        <textarea
+                            rows={3}
+                            value={overallComment}
+                            onChange={(e) => setOverallComment(e.target.value)}
+                            className="w-full border rounded p-2"
+                            placeholder="Ghi nhận xét tổng quan về bài làm / nhóm..."
+                            required
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-700">
+                            <strong>Tổng điểm:</strong> {computeTotal()}
+                        </div>
+
+                        <div className="space-x-2">
+                            <button
+                                onClick={() => { setShowRubricModal(false); }}
+                                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                                disabled={savingScore}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleSaveScore}
+                                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                disabled={savingScore}
+                            >
+                                {savingScore ? 'Đang lưu...' : 'Lưu điểm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+}

@@ -18,6 +18,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
   const [isBcn, setIsBcn] = useState(false);
   const [isBtc, setIsBtc] = useState(false);
   const [isCbl, setIsCbl] = useState(false);
+  const [isBgk, setIsBgk] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -27,6 +28,8 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
+          setIsCbl(false);
+          setIsBgk(false);
         }
         return;
       }
@@ -35,24 +38,28 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         console.log('[Navigation] Checking roles for user:', user.ma_ca_nhan);
         
         // Gọi song song cả 3 API để kiểm tra vai trò BCN, BTC và CBL
-        const [resBcn, resBtc, resCbl] = await Promise.all([
+        const [resBcn, resBtc, resCbl, resBgk] = await Promise.all([
           apiFetch('/api/me/is_bcn'),
           apiFetch('/api/me/is_btc'),
-          apiFetch('/api/me/is_cbl')
+          apiFetch('/api/me/is_cbl'),
+          apiFetch('/api/me/is_bgk')
         ]);
 
-        console.log('[Navigation] BCN response:', resBcn, 'BTC response:', resBtc, 'CBL response:', resCbl);
+        console.log('[Navigation] BCN response:', resBcn, 'BTC response:', resBtc, 'CBL response:', resCbl, 'BGK response:', resBgk);
 
         if (mounted) {
           setIsBcn(!!resBcn?.isBcn);
           setIsBtc(!!resBtc?.isBtc);
           setIsCbl(!!resCbl?.isCbl);
+          setIsBgk(!!resBgk?.isBgk);
         }
       } catch (err) {
         console.error('[Navigation] Error checking roles:', err);
         if (mounted) {
           setIsBcn(false);
           setIsBtc(false);
+          setIsCbl(false);
+          setIsBgk(false);
         }
       }
     })();
@@ -93,6 +100,10 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         items.push({ id: 'hoat_dong_tham_du', label: 'Quản lý HĐ Tham Dự' });
         items.push({ id: 'hoat_dong_ho_tro', label: 'Quản lý HĐ Hỗ Trợ' });
         items.push({ id: 'quan_ly_diem_danh', label: 'Quản lý Điểm Danh' });
+      }
+      
+      if (isBgk) {
+        items.push({ id: 'cham_diem', label: 'Chấm Điểm' });
       }
     }
     if (role.includes('sinh')  || role.includes('sinh viên')) {

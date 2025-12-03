@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Dec 02, 2025 at 04:41 PM
+-- Generation Time: Dec 03, 2025 at 04:24 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -129,10 +129,17 @@ INSERT INTO `can_bo_lop` (`ma_sinh_vien`, `bat_dau_nk`, `ket_thuc_nk`, `trang_th
 CREATE TABLE `cham_diem` (
   `id` int(11) NOT NULL,
   `id_dang_ky` int(11) NOT NULL,
-  `diem` decimal(2,2) NOT NULL,
+  `diem` decimal(5,2) NOT NULL,
   `nhan_xet` text NOT NULL,
   `ma_bgk` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `cham_diem`
+--
+
+INSERT INTO `cham_diem` (`id`, `id_dang_ky`, `diem`, `nhan_xet`, `ma_bgk`) VALUES
+(3, 12, 6.50, 'tốt', 'GV0013');
 
 -- --------------------------------------------------------
 
@@ -207,8 +214,8 @@ INSERT INTO `dang_ky_thi` (`id`, `id_hd`, `hinh_thuc`, `ma_sv`, `ten_nhom`, `ma_
 (4, 1, 'Nhóm', 'SV005', 'NEW02', 523605, 0),
 (8, 5, 'Cá nhân', 'SV005', NULL, NULL, -1),
 (10, 5, 'Cá nhân', 'SV10002', NULL, NULL, 1),
-(11, 3, 'Nhóm', 'SV10002', 'Nhóm Mới', 377705, -1),
-(12, 1, 'Nhóm', 'SV10002', 'Nhóm 01', 166575, 0),
+(11, 3, 'Nhóm', 'SV10002', 'Nhóm Mới', 377705, 0),
+(12, 1, 'Nhóm', 'SV10002', 'Nhóm 01', 166575, 1),
 (15, 4, 'Cá nhân', 'SV10002', NULL, NULL, 0),
 (22, 4, 'Nhóm', 'SV0011', 'Nhóm 02', 472176, 0);
 
@@ -751,7 +758,7 @@ ALTER TABLE `thong_tin_gcn`
 -- AUTO_INCREMENT for table `cham_diem`
 --
 ALTER TABLE `cham_diem`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `dang_ky_thi`

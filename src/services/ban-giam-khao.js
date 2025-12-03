@@ -34,3 +34,8 @@ export async function deleteBanGiamKhao(id_hd, ma_giang_vien) {
     method: 'DELETE'
   });
 }
+
+// lấy thông tin hoạt động thi thông qua mã giảng viên
+export async function fetchHoatDongThiByGiangVien(ma_giang_vien) {
+  return apiFetch(`/api/ban_giam_khao/hoat_dong_thi/${ma_giang_vien}`);
+}

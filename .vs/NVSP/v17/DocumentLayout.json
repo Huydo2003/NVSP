@@ -3,20 +3,12 @@
   "WorkspaceRootPath": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\DiemDanhManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\ChamDiemManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\diem-danh.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\services\\diem-danh.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhStudent.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}|",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\DiemDanhStudent.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}|"
     }
   ],
   "DocumentGroupContainers": [
@@ -51,14 +43,14 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "DiemDanhManagement.jsx",
-              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhManagement.jsx",
-              "RelativeDocumentMoniker": "src\\components\\DiemDanhManagement.jsx",
-              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhManagement.jsx",
-              "RelativeToolTip": "src\\components\\DiemDanhManagement.jsx",
-              "ViewState": "AgIAANcAAAAAAAAAAAAlwPMAAAARAAAAAAAAAA==",
+              "Title": "ChamDiemManagement.jsx",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx",
+              "RelativeDocumentMoniker": "src\\components\\ChamDiemManagement.jsx",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx",
+              "RelativeToolTip": "src\\components\\ChamDiemManagement.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAG8BAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-12-02T07:30:00.793Z",
+              "WhenOpened": "2025-12-03T14:36:59.602Z",
               "EditorCaption": ""
             },
             {
@@ -69,35 +61,10 @@
               "RelativeDocumentMoniker": "server\\server.js",
               "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js",
               "RelativeToolTip": "server\\server.js",
-              "ViewState": "AgIAAJ8JAAAAAAAAAAAowMMJAAAZAAAAAAAAAA==",
+              "ViewState": "AgIAANUKAAAAAAAAAAAowAoLAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
               "WhenOpened": "2025-12-01T14:31:36.77Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "diem-danh.js",
-              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\diem-danh.js",
-              "RelativeDocumentMoniker": "src\\services\\diem-danh.js",
-              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\diem-danh.js",
-              "RelativeToolTip": "src\\services\\diem-danh.js",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2025-12-01T14:25:04.255Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "DiemDanhStudent.jsx",
-              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhStudent.jsx",
-              "RelativeDocumentMoniker": "src\\components\\DiemDanhStudent.jsx",
-              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\DiemDanhStudent.jsx",
-              "RelativeToolTip": "src\\components\\DiemDanhStudent.jsx",
-              "ViewState": "AgIAABkAAAAAAAAAAAAAABsAAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-12-01T14:20:44.532Z"
             }
           ]
         },

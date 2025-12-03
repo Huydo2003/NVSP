@@ -1,4 +1,4 @@
-/* eslint-env node */
+﻿/* eslint-env node */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -2680,6 +2680,10 @@ app.get('/api/diem-danh/export', auth, async (req, res) => {
 // === Cham_Diem === //
 app.get('/api/cham_diem', auth, async (req, res) => {
   try {
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin' && !role.includes('bgk')) {
+      return res.status(403).json({ message: 'Không có quyền truy cập' });
+    }
     const [rows] = await pool.execute(
       `SELECT cd.id, cd.id_dang_ky, dkt.id_hd, tk.ho_ten AS ten_sinh_vien, cd.diem, cd.nhan_xet, cd.ma_bgk
        FROM cham_diem cd
@@ -2697,6 +2701,10 @@ app.get('/api/cham_diem', auth, async (req, res) => {
 
 app.post('/api/cham_diem', auth, async (req, res) => {
   try {
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin' && !role.includes('bgk')) {
+      return res.status(403).json({ message: 'Không có quyền truy cập' });
+    }
     const { id_dang_ky, diem, nhan_xet } = req.body || {};
     if (!id_dang_ky || typeof diem !== 'number') {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc: id_dang_ky, diem' });
@@ -2734,6 +2742,10 @@ app.post('/api/cham_diem', auth, async (req, res) => {
 // DELETE /api/cham_diem/:id
 app.delete('/api/cham_diem/:id', auth, async (req, res) => {
   try {
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin' && !role.includes('bgk')) {
+      return res.status(403).json({ message: 'Không có quyền truy cập' });
+    }
     const { id } = req.params;
     const ma_bgk = req.user.ma_ca_nhan;
     const [rows] = await pool.execute(
@@ -2753,78 +2765,6 @@ app.delete('/api/cham_diem/:id', auth, async (req, res) => {
     console.error('DELETE /api/cham_diem/:id error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
-});
-
-// NEW: Get registrations for activities that a BGK (giang_vien) is assigned to
-app.get('/api/dang-ky-thi/bgk/:ma_giang_vien', auth, async (req, res) => {
-    try {
-        const { ma_giang_vien } = req.params;
-        const requester = req.user.ma_ca_nhan;
-        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
-        const isBtcUser = await isUserBtc(requester);
-
-        // Only admin, BTC, or the same BGK can fetch this list
-        if (!isAdmin && !isBtcUser && requester !== ma_giang_vien) {
-            return res.status(403).json({ message: 'Không có quy?n truy c?p' });
-        }
-
-        const [bgkRows] = await pool.execute('SELECT id_hd FROM ban_giam_khao WHERE ma_giang_vien = ?', [ma_giang_vien]);
-        const ids = Array.isArray(bgkRows) ? bgkRows.map(r => r.id_hd) : [];
-        if (ids.length === 0) return res.json([]);
-
-        const placeholders = ids.map(() => '?').join(',');
-        const [rows] = await pool.execute(
-            `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-              dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-       FROM dang_ky_thi dkt
-       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-       WHERE dkt.id_hd IN (${placeholders})
-       ORDER BY hd.tg_bat_dau DESC`,
-            ids
-        );
-
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/dang-ky-thi/bgk/:ma_giang_vien error:', err);
-        res.status(500).json({ message: 'L?i server' });
-    }
-});
-
-// NEW: Get registrations for a specific hoat_dong_thi (id_hd)
-app.get('/api/dang-ky-thi/activity/:id_hd', auth, async (req, res) => {
-    try {
-        const { id_hd } = req.params;
-        const requester = req.user.ma_ca_nhan;
-        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
-        const isBtcUser = await isUserBtc(requester);
-
-        // If not admin nor BTC, make sure requester is a BGK for this activity
-        if (!isAdmin && !isBtcUser) {
-            const [check] = await pool.execute('SELECT ma_giang_vien FROM ban_giam_khao WHERE id_hd = ? AND ma_giang_vien = ? LIMIT 1', [id_hd, requester]);
-            if (!check || check.length === 0) {
-                return res.status(403).json({ message: 'Không có quy?n truy c?p' });
-            }
-        }
-
-        const [rows] = await pool.execute(
-            `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-              dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-       FROM dang_ky_thi dkt
-       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-       WHERE dkt.id_hd = ?
-       ORDER BY dkt.trang_thai DESC`,
-            [id_hd]
-        );
-
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/dang-ky-thi/activity/:id_hd error:', err);
-        res.status(500).json({ message: 'L?i server' });
-    }
 });
 
 app.listen(PORT, () => {
