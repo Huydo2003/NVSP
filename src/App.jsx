@@ -35,6 +35,7 @@ import DkiThamDuRegister from './components/DkiThamDuRegister';
 import DiemDanhStudent from './components/DiemDanhStudent';
 import DiemDanhManagement from './components/DiemDanhManagement';
 import ChamDiemManagement from './components/ChamDiemManagement';
+import KetQuaManagement from './components/KetQuaManagement';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -189,6 +190,8 @@ function App() {
         return <DiemDanhManagement />;
       case 'cham_diem':
         return <ChamDiemManagement user={currentUser} />;
+      case 'ket_qua':
+        return <KetQuaManagement user={currentUser} />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">

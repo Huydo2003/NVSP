@@ -1,4 +1,4 @@
-/* eslint-env node */
+﻿/* eslint-env node */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -2826,93 +2826,6 @@ app.get('/api/dang-ky-thi/activity/:id_hd', auth, async (req, res) => {
         res.status(500).json({ message: 'Lỗi server' });
     }
 });
-
-/// ==== KẾT QUẢ ==== //
-// GET /api/ket_qua
-app.get('/api/ket_qua', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT kq.*, dkt.ma_sv, dkt.ten_nhom, dkt.hinh_thuc, dkt.id_hd,
-             tk.ho_ten,
-             hd.ten_hd
-      FROM ket_qua kq
-      LEFT JOIN dang_ky_thi dkt ON kq.id_dang_ky = dkt.id
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-    `);
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/ket_qua error:", err);
-    res.status(500).json({ message: "Lỗi server (ket_qua)" });
-  }
-});
-
-// GET /api/ket_qua/with-avg
-app.get('/api/ket_qua/with-avg', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        dkt.id,
-        dkt.ma_sv,
-        dkt.ten_nhom,
-        dkt.hinh_thuc,
-        dkt.id_hd,
-        tk.ho_ten,
-        hd.ten_hd,
-        kq.giai_thuong,
-        kq.trang_thai,
-        AVG(cd.diem) AS avg_score
-      FROM dang_ky_thi dkt
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-      LEFT JOIN ket_qua kq ON dkt.id = kq.id_dang_ky
-      LEFT JOIN cham_diem cd ON dkt.id = cd.id_dang_ky
-      GROUP BY dkt.id
-      ORDER BY dkt.id DESC
-    `);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/ket_qua/with-avg error:", err);
-    res.status(500).json({ message: "Lỗi server (ket_qua with avg)" });
-  }
-});
-
-// POST /api/ket_qua
-app.post('/api/ket_qua', auth, async (req, res) => {
-  try {
-    const { id_dang_ky, giai_thuong, trang_thai } = req.body;
-
-    if (!id_dang_ky || !giai_thuong) {
-      return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
-    }
-
-    const [exist] = await pool.execute(
-      `SELECT id_dang_ky FROM ket_qua WHERE id_dang_ky = ? LIMIT 1`,
-      [id_dang_ky]
-    );
-
-    if (exist && exist.length > 0) {
-      await pool.execute(
-        `UPDATE ket_qua SET giai_thuong = ?, trang_thai = ? WHERE id_dang_ky = ?`,
-        [giai_thuong, trang_thai, id_dang_ky]
-      );
-      return res.json({ message: "Cập nhật kết quả thành công" });
-    }
-
-    await pool.execute(
-      `INSERT INTO ket_qua (id_dang_ky, giai_thuong, trang_thai)
-       VALUES (?, ?, ?)`,
-      [id_dang_ky, giai_thuong, trang_thai]
-    );
-
-    res.status(201).json({ message: "Thêm kết quả thành công" });
-  } catch (err) {
-    console.error("POST /api/ket_qua error:", err);
-    res.status(500).json({ message: "Lỗi server (post ket_qua)" });
-  }
-});
-
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

@@ -1,6 +1,6 @@
 // Default configuration
 export const defaultConfig = {
-  system_title: "Hệ Thống Quản Lý NVSP",
+  system_title: "Hệ Thống Quản Lý Ngiệp Vụ Sư Phạm",
   organization_name: "Trường Đại học ABC",
   contact_email: "admin@@hnue.edu.vn",
   primary_color: "#667eea",

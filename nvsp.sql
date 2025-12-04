@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Dec 03, 2025 at 04:24 PM
+-- Generation Time: Dec 04, 2025 at 05:20 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -139,7 +139,8 @@ CREATE TABLE `cham_diem` (
 --
 
 INSERT INTO `cham_diem` (`id`, `id_dang_ky`, `diem`, `nhan_xet`, `ma_bgk`) VALUES
-(3, 12, 6.50, 'tốt', 'GV0013');
+(3, 12, 6.50, 'tốt', 'GV0013'),
+(4, 12, 6.50, 'ok', 'GV001');
 
 -- --------------------------------------------------------
 
@@ -441,6 +442,13 @@ CREATE TABLE `ket_qua` (
   `giai_thuong` varchar(50) NOT NULL,
   `trang_thai` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `ket_qua`
+--
+
+INSERT INTO `ket_qua` (`id_dang_ky`, `giai_thuong`, `trang_thai`) VALUES
+(12, 'Giải Nhì', 1);
 
 -- --------------------------------------------------------
 
@@ -758,7 +766,7 @@ ALTER TABLE `thong_tin_gcn`
 -- AUTO_INCREMENT for table `cham_diem`
 --
 ALTER TABLE `cham_diem`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `dang_ky_thi`

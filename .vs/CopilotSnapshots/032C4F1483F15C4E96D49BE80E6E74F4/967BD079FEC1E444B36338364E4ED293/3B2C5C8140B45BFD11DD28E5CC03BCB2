@@ -1,0 +1,188 @@
+﻿import React, { useEffect, useState } from 'react';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import { useApp } from '../hooks/useApp';
+import { apiFetch } from '../services/api';
+
+export default function KetQuaManagement() {
+  const { state } = useApp();
+  const { config } = state;
+
+  const [regs, setRegs] = useState([]);
+  const [chamDiemList, setChamDiemList] = useState([]);
+  const [ketQuaList, setKetQuaList] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 9;
+
+  // modal
+  const [showModal, setShowModal] = useState(false);
+  const [selectedReg, setSelectedReg] = useState(null);
+  const [prize, setPrize] = useState('');
+  const [status, setStatus] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      const [rRegs, rCd, rKq] = await Promise.all([
+        apiFetch('/api/dang-ky-thi/btc/all'),
+        apiFetch('/api/cham_diem'),
+        apiFetch('/api/ket_qua')
+      ]);
+      setRegs(Array.isArray(rRegs) ? rRegs : []);
+      setChamDiemList(Array.isArray(rCd) ? rCd : []);
+      setKetQuaList(Array.isArray(rKq) ? rKq : []);
+    } catch (err) {
+      console.error('refreshData ketqua error', err);
+      toast.error('Không thể tải dữ liệu kết quả');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refreshData(); }, []);
+
+  const getAvgScore = (id_dang_ky) => {
+    const arr = (chamDiemList || []).filter(cd => String(cd.id_dang_ky) === String(id_dang_ky));
+    if (!arr || arr.length === 0) return null;
+    const sum = arr.reduce((s, v) => s + (Number(v.diem) || 0), 0);
+    const avg = sum / arr.length;
+    return Math.round(avg * 100) / 100;
+  };
+
+  const getKetQuaFor = (id_dang_ky) => {
+    return (ketQuaList || []).find(k => String(k.id_dang_ky) === String(id_dang_ky)) || null;
+  };
+
+  const openModal = (reg) => {
+    setSelectedReg(reg);
+    const existing = getKetQuaFor(reg.id);
+    setPrize(existing?.giai_thuong || '');
+    setStatus(typeof existing?.trang_thai !== 'undefined' && existing !== null ? existing.trang_thai : 1);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!selectedReg) return;
+    if (!prize || prize.trim() === '') {
+      toast.error('Vui lòng nhập tên giải thưởng');
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = { id_dang_ky: selectedReg.id, giai_thuong: prize.trim(), trang_thai: Number(status) };
+      const resp = await apiFetch('/api/ket_qua', { method: 'POST', body: payload });
+      toast.success(resp?.message || 'Đã lưu kết quả');
+      setShowModal(false);
+      await refreshData();
+    } catch (err) {
+      console.error('save ketqua error', err);
+      toast.error('Lưu kết quả thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id_dang_ky) => {
+    try {
+      await apiFetch(`/api/ket_qua/${id_dang_ky}`, { method: 'DELETE' });
+      toast.success('Đã xóa kết quả');
+      await refreshData();
+    } catch (err) {
+      console.error('delete ketqua error', err);
+      toast.error('Xóa kết quả thất bại');
+    }
+  };
+
+  const totalPages = Math.max(1, Math.ceil((regs || []).length / itemsPerPage));
+  const displayed = (regs || []).slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+  const getStatusText = (trang_thai) => {
+    if (trang_thai === 1) return 'Đã duyệt';
+    if (trang_thai === -1) return 'Từ chối';
+    return 'Chưa duyệt';
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      <div>
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>Kết quả - Ban Tổ Chức</h1>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="p-6">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Đang tải...</div>
+          ) : displayed.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Không có đăng ký nào</div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {displayed.map((reg) => {
+                const name = reg.hinh_thuc === 'Nhóm' ? (reg.ten_nhom || `Nhóm #${reg.id}`) : (reg.ho_ten || reg.ma_sv);
+                const hdName = reg.ten_hd || '';
+                const avg = getAvgScore(reg.id);
+                const kq = getKetQuaFor(reg.id);
+                return (
+                  <div key={reg.id} className="bg-white border rounded-lg shadow-sm p-4 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
+                      <div className="text-xs text-gray-500 mb-2">Hoạt động: {hdName}</div>
+
+                      <div className="text-sm text-gray-700 mb-2">Điểm TB giám khảo: {avg === null ? 'Chưa có' : String(avg)}</div>
+
+                      <div className="text-sm text-gray-700">Giải thưởng: <strong>{kq?.giai_thuong || '—'}</strong></div>
+                      <div className="text-xs text-gray-500 mt-1">Trạng thái: {getStatusText(kq?.trang_thai)}</div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end space-x-2">
+                      <button onClick={() => openModal(reg)} className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-xs">Chỉnh kết quả</button>
+                      {kq && (
+                        <button onClick={() => handleDelete(reg.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Xóa</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center space-x-3 py-4">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+          {Array.from({ length: totalPages }).map((_, idx) => (
+            <button key={idx} onClick={() => setPage(idx + 1)} className={`px-3 py-1 rounded ${page === idx + 1 ? 'text-white' : 'bg-gray-100 text-gray-700'}`} style={page === idx + 1 ? { backgroundColor: config.accent_color } : {}}>{idx + 1}</button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+        </div>
+      )}
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={`Kết quả: ${selectedReg ? (selectedReg.hinh_thuc === 'Nhóm' ? selectedReg.ten_nhom : (selectedReg.ho_ten || selectedReg.ma_sv)) : ''}`} size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tên giải thưởng</label>
+            <input type="text" value={prize} onChange={(e) => setPrize(e.target.value)} className="w-full border rounded p-2" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Trạng thái</label>
+            <select value={status} onChange={(e) => setStatus(Number(e.target.value))} className="w-full border rounded p-2">
+              <option value={1}>Đã duyệt</option>
+              <option value={0}>Chưa duyệt</option>
+              <option value={-1}>Từ chối</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <button onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300" disabled={saving}>Hủy</button>
+            <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
