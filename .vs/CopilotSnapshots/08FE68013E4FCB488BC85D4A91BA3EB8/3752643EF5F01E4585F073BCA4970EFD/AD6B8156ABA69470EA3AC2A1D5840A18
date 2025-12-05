@@ -1,4 +1,4 @@
-/* eslint-env node */
+﻿/* eslint-env node */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -808,14 +808,14 @@ app.get('/api/bcn', auth, async (req, res) => {
     const role = (req.user.role || '').toLowerCase();
     // admin sees all, giảng viên sees only their own BCN
     if (role === 'admin') {
-      const [rows] = await pool.execute('SELECT ma_giang_vien, khoa, bat_dau_nk, ket_thuc_nk, trang_thai FROM bcn ORDER BY bat_dau_nk DESC');
+      const [rows] = await pool.execute('SELECT ma_giang_vien, khoa, bat_dau_nk, ket_dau_nk, trang_thai FROM bcn ORDER BY bat_dau_nk DESC');
       return res.json(rows || []);
     }
 
     // allow giảng viên to view their assigned BCN
     if (role.includes('giang') || role.includes('giảng')) {
       const ma = req.user.ma_ca_nhan;
-      const [rows] = await pool.execute('SELECT ma_giang_vien, khoa, bat_dau_nk, ket_thuc_nk, trang_thai FROM bcn WHERE ma_giang_vien = ? ORDER BY bat_dau_nk DESC', [ma]);
+      const [rows] = await pool.execute('SELECT ma_giang_vien, khoa, bat_dau_nk, ket_dau_nk, trang_thai FROM bcn WHERE ma_giang_vien = ? ORDER BY bat_dau_nk DESC', [ma]);
       return res.json(rows || []);
     }
 
@@ -829,7 +829,7 @@ app.get('/api/bcn', auth, async (req, res) => {
 app.post('/api/bcn', auth, async (req, res) => {
   try {
     const role = (req.user.role || '').toLowerCase();
-    const { ma_giang_vien, khoa, bat_dau_nk, ket_thuc_nk, trang_thai } = req.body || {};
+    const { ma_giang_vien, khoa, bat_dau_nk, ket_dau_nk, trang_thai } = req.body || {};
     if (!ma_giang_vien) return res.status(400).json({ message: 'Thiếu thông tin ma_giang_vien' });
 
     // admin can create for anyone; giảng viên can only create for themselves
@@ -838,7 +838,7 @@ app.post('/api/bcn', auth, async (req, res) => {
         return res.status(403).json({ message: 'Giảng viên chỉ có thể tạo BCN cho chính mình' });
       }
 
-      await pool.execute('INSERT INTO bcn (ma_giang_vien, khoa, bat_dau_nk, ket_thuc_nk, trang_thai) VALUES (?, ?, ?, ?)', [ma_giang_vien, khoa, bat_dau_nk || null, ket_thuc_nk || null, trang_thai ? 1 : 0]);
+      await pool.execute('INSERT INTO bcn (ma_giang_vien, khoa, bat_dau_nk, ket_dau_nk, trang_thai) VALUES (?, ?, ?, ?)', [ma_giang_vien, khoa, bat_dau_nk || null, ket_dau_nk || null, trang_thai ? 1 : 0]);
       return res.status(201).json({ message: 'Đã thêm BCN' });
     }
 
@@ -853,7 +853,7 @@ app.put('/api/bcn/:ma_giang_vien', auth, async (req, res) => {
   try {
     const role = (req.user.role || '').toLowerCase();
     const { ma_giang_vien } = req.params;
-    const { khoa, bat_dau_nk, ket_thuc_nk, trang_thai } = req.body || {};
+    const { khoa, bat_dau_nk, ket_dau_nk, trang_thai } = req.body || {};
 
     // admin can update any; giảng viên can update only their own record
     if (role === 'admin' || role.includes('giang') || role.includes('giảng')) {
@@ -865,7 +865,7 @@ app.put('/api/bcn/:ma_giang_vien', auth, async (req, res) => {
       const params = [];
       if (khoa !== undefined) { updates.push('khoa = ?'); params.push(khoa); }
       if (bat_dau_nk !== undefined) { updates.push('bat_dau_nk = ?'); params.push(bat_dau_nk); }
-      if (ket_thuc_nk !== undefined) { updates.push('ket_thuc_nk = ?'); params.push(ket_thuc_nk); }
+      if (ket_dau_nk !== undefined) { updates.push('ket_dau_nk = ?'); params.push(ket_dau_nk); }
       if (trang_thai !== undefined) { updates.push('trang_thai = ?'); params.push(trang_thai ? 1 : 0); }
 
       if (updates.length > 0) {
@@ -982,7 +982,6 @@ app.put('/api/bcn-khoa/:ma_giang_vien', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/bcn-khoa/:ma_giang_vien
 app.delete('/api/bcn-khoa/:ma_giang_vien', auth, async (req, res) => {
   try {
     const role = (req.user.role || '').toLowerCase();
@@ -1272,7 +1271,7 @@ app.get('/api/can_bo_lop', auth, async (req, res) => {
     const [rows] = await pool.execute('SELECT ma_sinh_vien, bat_dau_nk, ket_thuc_nk, trang_thai FROM can_bo_lop ORDER BY bat_dau_nk DESC');
     res.json(rows || []);
   } catch (err) {
-    console.error('GET /api/can_bo_lop error:', err);
+    console.error('GET /api/can_bo_lop error', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
@@ -1446,101 +1445,6 @@ app.delete('/api/ds_rubric/:id_rubric', auth, async (req, res) => {
   }
 });
 
-// ===== CHI_TIET_RUBRIC CRUD =====
-app.get('/api/chi_tiet_rubric/:id_rubric', auth, async (req, res) => {
-  try {
-    const { id_rubric } = req.params;
-    const [rows] = await pool.execute('SELECT id_rubric, tieu_chi, diem_toi_da FROM chi_tiet_rubric WHERE id_rubric = ? ORDER BY tieu_chi ASC', [id_rubric]);
-    res.json(rows || []);
-  } catch (err) {
-    console.error('GET chi_tiet_rubric error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-app.post('/api/chi_tiet_rubric', auth, async (req, res) => {
-  try {
-    // Check BTC (Ban Tổ Chức) only
-    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
-      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể tạo chi tiết Rubric' });
-    }
-
-    const { id_rubric, tieu_chi, diem_toi_da } = req.body || {};
-
-    if (!tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
-
-    const diem = Number(diem_toi_da);
-    if (isNaN(diem)) {
-      return res.status(400).json({ message: 'Điểm tối đa phải là số' });
-    }
-
-    // Check duplicate tieu_chi
-    const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, tieu_chi]);
-    if (exist && exist.length > 0) {
-      return res.status(400).json({ message: `Tiêu chí '${tieu_chi}' đã tồn tại trong Rubric này` });
-    }
-
-    await pool.execute('INSERT INTO chi_tiet_rubric (id_rubric, tieu_chi, diem_toi_da) VALUES (?, ?, ?)', [id_rubric, tieu_chi, diem || 0]);
-    res.status(201).json({ message: 'Đã thêm chi tiết Rubric' });
-  } catch (err) {
-    console.error('POST chi_tiet_rubric error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-app.put('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
-  try {
-    // Check BTC (Ban Tổ Chức) only
-    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
-      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể sửa chi tiết Rubric' });
-    }
-
-    const { id_rubric, tieu_chi } = req.params;
-    const { tieu_chi: new_tieu_chi, diem_toi_da } = req.body || {};
-
-    if (!new_tieu_chi) return res.status(400).json({ message: 'Tiêu chí không được để trống' });
-
-    const diem = Number(diem_toi_da);
-    if (isNaN(diem)) {
-      return res.status(400).json({ message: 'Điểm tối đa phải là số' });
-    }
-
-    // If tieu_chi changed, check duplicate
-    if (new_tieu_chi !== tieu_chi) {
-      const [exist] = await pool.execute('SELECT tieu_chi FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ? LIMIT 1', [id_rubric, new_tieu_chi]);
-      if (exist && exist.length > 0) {
-        return res.status(400).json({ message: `Tiêu chí '${new_tieu_chi}' đã tồn tại` });
-      }
-    }
-
-    await pool.execute('UPDATE chi_tiet_rubric SET tieu_chi = ?, diem_toi_da = ? WHERE id_rubric = ? AND tieu_chi = ?', [new_tieu_chi, diem || 0, id_rubric, tieu_chi]);
-    res.json({ message: 'Đã cập nhật chi tiết Rubric' });
-  } catch (err) {
-    console.error('PUT chi_tiet_rubric error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-app.delete('/api/chi_tiet_rubric/:id_rubric/:tieu_chi', auth, async (req, res) => {
-  try {
-    // Check BTC (Ban Tổ Chức) only
-    const isBtc = await isUserBtc(req.user.ma_ca_nhan);
-    if ((req.user.role || '').toLowerCase() !== 'admin' && !isBtc) {
-      return res.status(403).json({ message: 'Chỉ Ban Tổ Chức (BTC) mới có thể xóa chi tiết Rubric' });
-    }
-
-    const { id_rubric, tieu_chi } = req.params;
-    await pool.execute('DELETE FROM chi_tiet_rubric WHERE id_rubric = ? AND tieu_chi = ?', [id_rubric, tieu_chi]);
-    res.json({ message: 'Đã xóa chi tiết Rubric' });
-  } catch (err) {
-    console.error('DELETE chi_tiet_rubric error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-
 // ===== HOAT_DONG CRUD =====
 app.get('/api/hoat_dong', auth, async (req, res) => {
   try {
@@ -1616,7 +1520,6 @@ app.delete('/api/hoat_dong/:id_hd', auth, async (req, res) => {
   }
 });
 
-
 // ===== HOAT_DONG_THI CRUD =====
 app.get('/api/hoat_dong_thi', auth, async (req, res) => {
   try {
@@ -1624,8 +1527,9 @@ app.get('/api/hoat_dong_thi', auth, async (req, res) => {
       `SELECT hdt.id_hd, hd.ten_hd, hdt.id_rubric, dr.ten_rubric, hdt.hinh_thuc, hdt.so_luong_tv
        FROM hoat_dong_thi hdt
        JOIN ds_rubric dr ON hdt.id_rubric = dr.id_rubric
-       JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd`
-    );
+       JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+       JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
+    `);
     res.json(rows || []);
   } catch (err) {
     console.error('GET /api/hoat_dong_thi error:', err);
@@ -1915,8 +1819,7 @@ app.get('/api/dki-tham-du', auth, async (req, res) => {
        FROM dki_tham_du dt
        LEFT JOIN tai_khoan tk ON dt.ma_sv = tk.ma_ca_nhan
        LEFT JOIN sinh_vien sv ON dt.ma_sv = sv.ma_sinh_vien
-       LEFT JOIN hoat_dong_tham_du hdt ON dt.id_hd = hdt.id_hd_tham_du
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+       LEFT JOIN hoat_dong_tham_du hd ON dt.id_hd = hd.id_hd_tham_du
        WHERE dt.ma_sv = ?
        ORDER BY hd.tg_bat_dau DESC`,
       [ma_sv]
@@ -1930,200 +1833,6 @@ app.get('/api/dki-tham-du', auth, async (req, res) => {
 
 // POST /api/dki-tham-du - student registers for a participation activity (personal only)
 app.post('/api/dki-tham-du', auth, async (req, res) => {
-  try {
-    const ma_sv = req.user.ma_ca_nhan;
-    const { id_hd } = req.body || {};
-    if (!id_hd) return res.status(400).json({ message: 'Thiếu id_hd' });
-
-    // check activity exists
-    const [hdtRows] = await pool.execute('SELECT id_hd_tham_du, id_hd FROM hoat_dong_tham_du WHERE id_hd_tham_du = ? LIMIT 1', [id_hd]);
-    if (!hdtRows || hdtRows.length === 0) return res.status(404).json({ message: 'Hoạt động tham dự không tồn tại' });
-
-    // check duplicate
-    const [exist] = await pool.execute('SELECT ma_sv FROM dki_tham_du WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
-    if (exist && exist.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký tham dự hoạt động này' });
-
-    // Cross-check: if student already registered for exam (dang_ky_thi) for same id_hd, block
-    const [conflict] = await pool.execute('SELECT ma_sv FROM dang_ky_thi WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
-    if (conflict && conflict.length > 0) return res.status(400).json({ message: 'Bạn đã đăng ký thi cho hoạt động này, không thể đăng ký tham dự' });
-
-    await pool.execute('INSERT INTO dki_tham_du (ma_sv, id_hd, trang_thai) VALUES (?, ?, ?)', [ma_sv, id_hd, 0]);
-    res.status(201).json({ message: 'Đã đăng ký tham dự. Chờ duyệt từ CBL.' });
-  } catch (err) {
-    console.error('POST /api/dki-tham-du error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-// GET /api/dki-tham-du/class - CBL gets registrations for their class
-app.get('/api/dki-tham-du/class', auth, async (req, res) => {
-  try {
-    const ma = req.user.ma_ca_nhan;
-    const info = await isUserCbl(ma);
-    if (!info.isCbl) return res.status(403).json({ message: 'Không có quyền truy cập' });
-    const lop = info.lop;
-    const [rows] = await pool.execute(
-      `SELECT d.ma_sv, d.id_hd, d.trang_thai, sv.lop, tk.ho_ten, tk.email
-       FROM dki_tham_du d
-       JOIN sinh_vien sv ON d.ma_sv = sv.ma_sinh_vien
-       LEFT JOIN tai_khoan tk ON sv.ma_sinh_vien = tk.ma_ca_nhan
-       WHERE sv.lop = ?
-       ORDER BY d.id_hd DESC`,
-      [lop]
-    );
-    res.json(rows || []);
-  } catch (err) {
-    console.error('GET /api/dki-tham-du/class error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-app.get('/api/diem-danh/stats', auth, async (req, res) => {
-  try {
-    // Aggregate counts per activity id (id_hd)
-    const [rows] = await pool.execute(
-      `SELECT 
-          dd.id_hd AS id_hd_tham_du,
-          SUM(CASE WHEN dd.trang_thai = 0 THEN 1 ELSE 0 END) AS pending,
-          SUM(CASE WHEN dd.trang_thai = 1 THEN 1 ELSE 0 END) AS approved,
-          SUM(CASE WHEN dd.trang_thai = -1 THEN 1 ELSE 0 END) AS rejected,
-          COUNT(*) AS total
-        FROM diem_danh dd
-        GROUP BY dd.id_hd`
-    );
-
-    // Cast numbers and ensure id is string to be consistent with frontend
-    const data = (rows || []).map(r => ({
-      id_hd_tham_du: r.id_hd_tham_du != null ? String(r.id_hd_tham_du) : null,
-      pending: Number(r.pending || 0),
-      approved: Number(r.approved || 0),
-      rejected: Number(r.rejected || 0),
-      total: Number(r.total || 0)
-    }));
-
-    res.json(data);
-  } catch (err) {
-    console.error('GET /api/diem-danh/stats error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-// PUT /api/dki-tham-du/:ma_sv/:id_hd - CBL approves/rejects a registration
-app.put('/api/dki-tham-du/:ma_sv/:id_hd', auth, async (req, res) => {
-  try {
-    const ma = req.user.ma_ca_nhan;
-    const { ma_sv, id_hd } = req.params;
-    const { trang_thai } = req.body || {};
-    const info = await isUserCbl(ma);
-    if (!info.isCbl) return res.status(403).json({ message: 'Không có quyền truy cập' });
-
-    // Verify target student belongs to same class
-    const [svRows] = await pool.execute('SELECT lop FROM sinh_vien WHERE ma_sinh_vien = ? LIMIT 1', [ma_sv]);
-    if (!svRows || svRows.length === 0) return res.status(404).json({ message: 'Sinh viên không tồn tại' });
-    if (svRows[0].lop !== info.lop) return res.status(403).json({ message: 'Không thể duyệt đăng ký ngoài lớp của bạn' });
-
-    // Check lock: if participation activity's related hoat_dong has ended, block CBL approval
-    const [hRows] = await pool.execute(
-      `SELECT hd.tg_ket_thuc FROM hoat_dong_tham_du hdt
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       WHERE hdt.id_hd_tham_du = ? LIMIT 1`,
-      [id_hd]
-    );
-    if (hRows && hRows.length > 0 && hRows[0].tg_ket_thuc) {
-      const endTs = new Date(hRows[0].tg_ket_thuc).getTime();
-      if (Date.now() > endTs) {
-        return res.status(403).json({ message: 'Quyền duyệt đã bị khóa (hết thời gian)' });
-      }
-    }
-
-    if (typeof trang_thai !== 'number' || ![0, 1, -1].includes(trang_thai)) {
-      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
-    }
-
-    const [exist] = await pool.execute('SELECT ma_sv FROM dki_tham_du WHERE id_hd = ? AND ma_sv = ? LIMIT 1', [id_hd, ma_sv]);
-    if (!exist || exist.length === 0) return res.status(404).json({ message: 'Đăng ký không tồn tại' });
-
-    await pool.execute('UPDATE dki_tham_du SET trang_thai = ? WHERE id_hd = ? AND ma_sv = ?', [trang_thai, id_hd, ma_sv]);
-    res.json({ message: 'Cập nhật trạng thái thành công' });
-  } catch (err) {
-    console.error('PUT /api/dki-tham-du/:ma_sv/:id_hd error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-// DELETE /api/dki-tham-du/:ma_sv/:id_hd - Student cancels participation registration
-app.delete('/api/dki-tham-du/:ma_sv/:id_hd', auth, async (req, res) => {
-  try {
-    const { ma_sv, id_hd } = req.params;
-    const currentUser = req.user.ma_ca_nhan;
-
-    // Only the student who registered can cancel, or admin
-    const role = (req.user.role || '').toLowerCase();
-    if (currentUser !== ma_sv && !role.includes('admin')) {
-      return res.status(403).json({ message: 'Không có quyền hủy đăng ký này' });
-    }
-
-    await pool.execute(
-      'DELETE FROM dki_tham_du WHERE ma_sv = ? AND id_hd = ?',
-      [ma_sv, id_hd]
-    );
-    res.json({ message: 'Đã hủy đăng ký tham dự' });
-  } catch (err) {
-    console.error('DELETE /api/dki-tham-du/:ma_sv/:id_hd error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-
-// ===== DANG_KY_THI CRUD (Student Registration) =====
-// Helper: Generate random 6-digit join code
-function generateJoinCode() {
-  return Math.floor(100000 + Math.random() * 900000);
-}
-
-// GET /api/dang-ky-thi - Get all registrations for current student or admin view
-app.get('/api/dang-ky-thi', auth, async (req, res) => {
-  try {
-    const role = (req.user.role || '').toLowerCase();
-    const ma_sv = req.user.ma_ca_nhan;
-
-    if (role === 'admin' || role.includes('admin')) {
-      // Admin sees all registrations
-      const [rows] = await pool.execute(
-        `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-                dkt.hinh_thuc, dkt.ma_sv, sv.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-         FROM dang_ky_thi dkt
-         LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-         LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-         LEFT JOIN sinh_vien sv ON dkt.ma_sv = sv.ma_sinh_vien
-         LEFT JOIN tai_khoan tk ON sv.ma_sinh_vien = tk.ma_ca_nhan
-         ORDER BY hd.tg_bat_dau DESC`
-      );
-      return res.json(rows || []);
-    }
-
-    // Students see their own registrations (either they registered individually or belong to a group)
-    const [rows] = await pool.execute(
-      `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc,
-              dkt.hinh_thuc, dkt.ma_sv, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-       FROM dang_ky_thi dkt
-       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       WHERE dkt.ma_sv = ? OR (dkt.ten_nhom IS NOT NULL AND dkt.ten_nhom IN (
-         SELECT tvm.ten_nhom FROM thanh_vien_nhom tvm WHERE tvm.ma_sv = ?
-       ))
-       ORDER BY hd.tg_bat_dau DESC`,
-      [ma_sv, ma_sv]
-    );
-    res.json(rows || []);
-  } catch (err) {
-    console.error('GET /api/dang-ky-thi error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
-  }
-});
-
-// POST /api/dang-ky-thi - Register for an activity (individual or group)
-app.post('/api/dang-ky-thi', auth, async (req, res) => {
   try {
     const ma_sv = req.user.ma_ca_nhan;
     const { id_hd, hinh_thuc, ten_nhom, ma_tham_gia } = req.body || {};
@@ -2308,21 +2017,19 @@ app.put('/api/dang-ky-thi/:id', auth, async (req, res) => {
 app.get('/api/dang-ky-thi/btc/all', auth, async (req, res) => {
   try {
     const ma_ca_nhan = req.user.ma_ca_nhan;
-    const isBtc = await isUserBtc(ma_ca_nhan);
+    const isBtcUser = await isUserBtc(ma_ca_nhan);
     const cblInfo = await isUserCbl(ma_ca_nhan);
 
     // If caller is BTC, return all registrations
-    if (isBtc) {
+    if (isBtcUser) {
       const [rows] = await pool.execute(
         `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-                dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai,
-                sv.lop
-         FROM dang_ky_thi dkt
-         LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-         LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-         LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-         LEFT JOIN sinh_vien sv ON dkt.ma_sv = sv.ma_sinh_vien
-         ORDER BY hd.tg_bat_dau DESC`
+                dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
+       FROM dang_ky_thi dkt
+       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
+       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
+       ORDER BY hd.tg_bat_dau DESC`
       );
       return res.json(rows || []);
     }
@@ -2360,50 +2067,14 @@ app.delete('/api/dang-ky-thi/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const ma_sv = req.user.ma_ca_nhan;
-
-    // Get registration
-    const [regRows] = await pool.execute(
-      'SELECT id, ma_sv, ten_nhom FROM dang_ky_thi WHERE id = ? LIMIT 1',
-      [id]
-    );
-
-    if (!regRows || regRows.length === 0) {
-      return res.status(404).json({ message: 'Đăng ký không tồn tại' });
-    }
-
-    const reg = regRows[0];
-
-    // Check permission: only owner or member can delete
-    if (reg.ma_sv !== ma_sv) {
-      // Check if student is group member (match by ten_nhom)
-      const [member] = await pool.execute(
-        'SELECT ma_sv FROM thanh_vien_nhom WHERE ten_nhom = ? AND ma_sv = ? LIMIT 1',
-        [reg.ten_nhom, ma_sv]
-      );
-      if (!member || member.length === 0) {
-        return res.status(403).json({ message: 'Không có quyền hủy đăng ký này' });
-      }
-    }
-
-    // Delete from thanh_vien_nhom if group (remove this student from the group)
-    if (reg.ten_nhom) {
-      await pool.execute(
-        'DELETE FROM thanh_vien_nhom WHERE ten_nhom = ? AND ma_sv = ?',
-        [reg.ten_nhom, ma_sv]
-      );
-    }
-
-    // If group leader, delete entire registration and all members; else just remove member
-    if (reg.ma_sv === ma_sv) {
-      // If leader, remove all members for that group name
-      if (reg.ten_nhom) {
-        await pool.execute('DELETE FROM thanh_vien_nhom WHERE ten_nhom = ?', [reg.ten_nhom]);
-      }
-      await pool.execute('DELETE FROM dang_ky_thi WHERE id = ?', [id]);
-      res.json({ message: 'Hủy đăng ký thành công' });
-    } else {
-      res.json({ message: 'Rời khỏi nhóm thành công' });
-    }
+    const role = (req.user.role || '').toLowerCase();
+    const [rows] = await pool.execute('SELECT id, ma_sv, trang_thai FROM dang_ky_thi WHERE id = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Đăng ký không tồn tại' });
+    const rec = rows[0];
+    if (role !== 'admin' && rec.ma_sv !== ma_sv) return res.status(403).json({ message: 'Không có quyền hủy đăng ký này' });
+    if (rec.trang_thai === 1) return res.status(400).json({ message: 'Không thể hủy đăng ký đã được duyệt' });
+    await pool.execute('DELETE FROM dang_ky_thi WHERE id = ?', [id]);
+    res.json({ message: 'Đã hủy đăng ký' });
   } catch (err) {
     console.error('DELETE /api/dang-ky-thi/:id error:', err);
     res.status(500).json({ message: 'Lỗi server' });
@@ -2469,6 +2140,7 @@ app.get('/api/diem-danh/activity/:id_hd_tham_du', auth, async (req, res) => {
              FROM diem_danh dd
               LEFT JOIN tai_khoan tk ON dd.ma_sv = tk.ma_ca_nhan
               LEFT JOIN sinh_vien sv ON dd.ma_sv = sv.ma_sinh_vien
+              LEFT JOIN hoat_dong_tham_du hd ON dd.id_hd = hd.id_hd_tham_du
              WHERE dd.id_hd = ?
              ORDER BY dd.thoi_gian DESC`,
       [id_hd_tham_du]
@@ -2503,15 +2175,11 @@ app.put('/api/diem-danh/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { trang_thai } = req.body || {};
+
     if (typeof trang_thai !== 'number' || ![1, -1].includes(trang_thai)) {
-      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ (1: approved, -1: rejected)' });
     }
-    const ma = req.user && req.user.ma_ca_nhan;
-    const isBtcUser = await isUserBtc(ma);
-    const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
-    if (!isAdmin && !isBtcUser) {
-      return res.status(403).json({ message: 'Không có quyền duyệt điểm danh' });
-    }
+
     const [rows] = await pool.execute('SELECT id FROM diem_danh WHERE id = ? LIMIT 1', [id]);
     if (!rows || rows.length === 0) return res.status(404).json({ message: 'Bản ghi điểm danh không tồn tại' });
     await pool.execute('UPDATE diem_danh SET trang_thai = ? WHERE id = ?', [trang_thai, id]);
@@ -2521,7 +2189,6 @@ app.put('/api/diem-danh/:id', auth, async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
-
 
 // DELETE /api/diem-danh/:id
 app.delete('/api/diem-danh/:id', auth, async (req, res) => {
@@ -2681,17 +2348,20 @@ app.get('/api/diem-danh/export', auth, async (req, res) => {
 app.get('/api/cham_diem', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT cd.id, cd.id_dang_ky, dkt.id_hd, tk.ho_ten AS ten_sinh_vien, cd.diem, cd.nhan_xet, cd.ma_bgk
-       FROM cham_diem cd
-        LEFT JOIN dang_ky_thi dkt ON cd.id_dang_ky = dkt.id
-        LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-       ORDER BY cd.id DESC`
-    );
+      `SELECT cd.id, cd.id_dang_ky, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
+             cd.hinh_thuc, cd.ma_sv, cd.ten_nhom, cd.ma_tham_gia, cd.trang_thai,
+             tk.ho_ten,
+             hd.ten_hd
+      FROM cham_diem cd
+      LEFT JOIN dang_ky_thi dkt ON cd.id_dang_ky = dkt.id
+      LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
+      LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
+      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
+    `);
     res.json(rows || []);
-  }
-  catch (err) {
-    console.error('GET /api/cham_diem error:', err);
-    res.status(500).json({ message: 'Lỗi server' });
+  } catch (err) {
+    console.error("GET /api/cham_diem error:", err);
+    res.status(500).json({ message: "Lỗi server (cham_diem)" });
   }
 });
 
@@ -2701,7 +2371,7 @@ app.post('/api/cham_diem', auth, async (req, res) => {
     if (!id_dang_ky || typeof diem !== 'number') {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc: id_dang_ky, diem' });
     }
-    const ma_bgk = req.user.ma_ca_nhan;
+    const ma_bgk = req.user?.ma_ca_nhan || null;
 
     // Check if record exists
     const [exist] = await pool.execute(
@@ -2724,8 +2394,7 @@ app.post('/api/cham_diem', auth, async (req, res) => {
       [id_dang_ky, diem, nhan_xet || null, ma_bgk]
     );
     res.status(201).json({ message: 'Thêm chấm điểm thành công' });
-  }
-  catch (err) {
+  } catch (err) {
     console.error('POST /api/cham_diem error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
@@ -2748,886 +2417,91 @@ app.delete('/api/cham_diem/:id', auth, async (req, res) => {
       [id, ma_bgk]
     );
     res.json({ message: 'Xóa chấm điểm thành công' });
-  }
-  catch (err) {
+  } catch (err) {
     console.error('DELETE /api/cham_diem/:id error:', err);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
 
-// NEW: Get registrations for activities that a BGK (giang_vien) is assigned to
-app.get('/api/dang-ky-thi/bgk/:ma_giang_vien', auth, async (req, res) => {
-    try {
-        const { ma_giang_vien } = req.params;
-        const requester = req.user.ma_ca_nhan;
-        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
-        const isBtcUser = await isUserBtc(requester);
-
-        // Only admin, BTC, or the same BGK can fetch this list
-        if (!isAdmin && !isBtcUser && requester !== ma_giang_vien) {
-            return res.status(403).json({ message: 'Không có quyền truy cập' });
-        }
-
-        const [bgkRows] = await pool.execute('SELECT id_hd FROM ban_giam_khao WHERE ma_giang_vien = ?', [ma_giang_vien]);
-        const ids = Array.isArray(bgkRows) ? bgkRows.map(r => r.id_hd) : [];
-        if (ids.length === 0) return res.json([]);
-
-        const placeholders = ids.map(() => '?').join(',');
-        const [rows] = await pool.execute(
-            `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-              dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-       FROM dang_ky_thi dkt
-       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-       WHERE dkt.id_hd IN (${placeholders})
-       ORDER BY hd.tg_bat_dau DESC`,
-            ids
-        );
-
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/dang-ky-thi/bgk/:ma_giang_vien error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
-});
-
-// NEW: Get registrations for a specific hoat_dong_thi (id_hd)
-app.get('/api/dang-ky-thi/activity/:id_hd', auth, async (req, res) => {
-    try {
-        const { id_hd } = req.params;
-        const requester = req.user.ma_ca_nhan;
-        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
-        const isBtcUser = await isUserBtc(requester);
-
-        // If not admin nor BTC, make sure requester is a BGK for this activity
-        if (!isAdmin && !isBtcUser) {
-            const [check] = await pool.execute('SELECT ma_giang_vien FROM ban_giam_khao WHERE id_hd = ? AND ma_giang_vien = ? LIMIT 1', [id_hd, requester]);
-            if (!check || check.length === 0) {
-                return res.status(403).json({ message: 'Không có quyền truy cập' });
-            }
-        }
-
-        const [rows] = await pool.execute(
-            `SELECT dkt.id, dkt.id_hd, hd.ten_hd, hdt.hinh_thuc as configured_hinh_thuc, 
-              dkt.hinh_thuc, dkt.ma_sv, tk.ho_ten, dkt.ten_nhom, dkt.ma_tham_gia, dkt.trang_thai
-       FROM dang_ky_thi dkt
-       LEFT JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-       LEFT JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-       LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-       WHERE dkt.id_hd = ?
-       ORDER BY dkt.trang_thai DESC`,
-            [id_hd]
-        );
-
-        res.json(rows || []);
-    } catch (err) {
-        console.error('GET /api/dang-ky-thi/activity/:id_hd error:', err);
-        res.status(500).json({ message: 'Lỗi server' });
-    }
-});
-
-/// ==== KẾT QUẢ ==== //
-// GET /api/ket_qua
-app.get('/api/ket_qua', auth, async (req, res) => {
+// POST /api/giay_chung_nhan/log - record a lookup (any authenticated user)
+app.post('/api/giay_chung_nhan/log', auth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT kq.*, dkt.ma_sv, dkt.ten_nhom, dkt.hinh_thuc, dkt.id_hd,
-             tk.ho_ten,
-             hd.ten_hd
-      FROM ket_qua kq
-      LEFT JOIN dang_ky_thi dkt ON kq.id_dang_ky = dkt.id
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-    `);
-    res.json(rows || []);
+    const { id_gcn } = req.body || {};
+    if (!id_gcn) return res.status(400).json({ message: 'Thiếu id_gcn' });
+
+    // Optionally verify gcn exists
+    const [gcnRows] = await pool.execute('SELECT id FROM thong_tin_gcn WHERE id = ? LIMIT 1', [id_gcn]);
+    if (!gcnRows || gcnRows.length === 0) return res.status(404).json({ message: 'Giấy chứng nhận không tồn tại' });
+
+    await pool.execute('INSERT INTO log_tra_cuu (id_gcn, tg_tra_cuu) VALUES (?, NOW())', [id_gcn]);
+    res.status(201).json({ message: 'Đã ghi log tra cứu' });
   } catch (err) {
-    console.error("GET /api/ket_qua error:", err);
-    res.status(500).json({ message: "Lỗi server (ket_qua)" });
+    console.error('POST /api/giay_chung_nhan/log error:', err);
+    res.status(500).json({ message: 'Lỗi server (log tra cứu)' });
   }
 });
 
-// GET /api/ket_qua/with-avg
-app.get('/api/ket_qua/with-avg', auth, async (req, res) => {
+// GET /api/giay_chung_nhan/log/:id_gcn - admin view of lookup logs for a specific GCN
+app.get('/api/giay_chung_nhan/log/:id_gcn', auth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        dkt.id,
-        dkt.ma_sv,
-        dkt.ten_nhom,
-        dkt.hinh_thuc,
-        dkt.id_hd,
-        tk.ho_ten,
-        hd.ten_hd,
-        kq.giai_thuong,
-        kq.trang_thai,
-        AVG(cd.diem) AS avg_score
-      FROM dang_ky_thi dkt
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-      LEFT JOIN ket_qua kq ON dkt.id = kq.id_dang_ky
-      LEFT JOIN cham_diem cd ON dkt.id = cd.id_dang_ky
-      GROUP BY dkt.id
-      ORDER BY dkt.id DESC
-    `);
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
 
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/ket_qua/with-avg error:", err);
-    res.status(500).json({ message: "Lỗi server (ket_qua with avg)" });
-  }
-});
-
-// POST /api/ket_qua
-app.post('/api/ket_qua', auth, async (req, res) => {
-  try {
-    const { id_dang_ky, giai_thuong, trang_thai } = req.body;
-
-    if (!id_dang_ky || !giai_thuong) {
-      return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
-    }
-
-    const [exist] = await pool.execute(
-      `SELECT id_dang_ky FROM ket_qua WHERE id_dang_ky = ? LIMIT 1`,
-      [id_dang_ky]
-    );
-
-    if (exist && exist.length > 0) {
-      await pool.execute(
-        `UPDATE ket_qua SET giai_thuong = ?, trang_thai = ? WHERE id_dang_ky = ?`,
-        [giai_thuong, trang_thai, id_dang_ky]
-      );
-      return res.json({ message: "Cập nhật kết quả thành công" });
-    }
-
-    await pool.execute(
-      `INSERT INTO ket_qua (id_dang_ky, giai_thuong, trang_thai)
-       VALUES (?, ?, ?)`,
-      [id_dang_ky, giai_thuong, trang_thai]
-    );
-
-    res.status(201).json({ message: "Thêm kết quả thành công" });
-  } catch (err) {
-    console.error("POST /api/ket_qua error:", err);
-    res.status(500).json({ message: "Lỗi server (post ket_qua)" });
-  }
-});
-
-// === GIẤY CHỨNG NHẬN === //
-app.get('/api/giay_chung_nhan', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT gcn.*, dkt.ma_sv, dkt.ten_nhom, tk.ho_ten, hd.ten_hd
-      FROM thong_tin_gcn gcn
-      LEFT JOIN ket_qua kq ON gcn.doi_tuong = kq.id_dang_ky
-      LEFT JOIN dang_ky_thi dkt ON kq.id_dang_ky = dkt.id
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-      ORDER BY gcn.id DESC
-    `);
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/giay_chung_nhan error:", err);
-    res.status(500).json({ message: "Lỗi server (giay_chung_nhan)" });
-  }
-});
-
-app.post('/api/giay_chung_nhan', auth, async (req, res) => {
-  try {
-    const { loai_chung_nhan, doi_tuong, noi_dung, trang_thai } = req.body || {};
-
-    const ma_btc = req.user?.ma_ca_nhan || null;
-
-    if (!loai_chung_nhan || !doi_tuong || !noi_dung) {
-      return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
-    }
-
-    // Check tồn tại
-    const [exist] = await pool.execute(
-      'SELECT id, trang_thai FROM thong_tin_gcn WHERE doi_tuong = ? LIMIT 1',
-      [doi_tuong]
-    );
-
-    // ============================
-    // CẬP NHẬT
-    // ============================
-    if (exist && exist.length > 0) {
-
-      const oldStatus = exist[0].trang_thai;
-
-      await pool.execute(
-        `UPDATE thong_tin_gcn 
-         SET loai_chung_nhan = ?, noi_dung = ?, trang_thai = ?, ma_btc = ?
-         WHERE doi_tuong = ?`,
-        [loai_chung_nhan, noi_dung, trang_thai, ma_btc, doi_tuong]
-      );
-
-      // GHI LOG NẾU TRẠNG THÁI THAY ĐỔI
-      if (oldStatus !== trang_thai) {
-        const hanh_dong =
-          trang_thai === 1 ? "Phát hành" :
-          trang_thai === -1 ? "Thu hồi" : "Cập nhật";
-
-        await pool.execute(
-          `INSERT INTO log_gcn (id_gcn, hanh_dong, thoi_gian, ma_btc)
-           VALUES (?, ?, NOW(), ?)`,
-          [exist[0].id, hanh_dong, ma_btc]
-        );
-      }
-
-      return res.json({ message: "Cập nhật giấy chứng nhận thành công" });
-    }
-
-    // ============================
-    // THÊM MỚI
-    // ============================
-    const [result] = await pool.execute(
-      `INSERT INTO thong_tin_gcn 
-       (loai_chung_nhan, doi_tuong, noi_dung, trang_thai, ma_btc)
-       VALUES (?, ?, ?, ?, ?)`,
-      [loai_chung_nhan, doi_tuong, noi_dung, trang_thai, ma_btc]
-    );
-
-    const newId = result.insertId;
-
-    // GHI LOG PHÁT HÀNH
-    await pool.execute(
-      `INSERT INTO log_gcn (id_gcn, hanh_dong, thoi_gian, ma_btc)
-       VALUES (?, ?, NOW(), ?)`,
-      [newId, "Phát hành", ma_btc]
-    );
-
-    res.status(201).json({ message: "Thêm giấy chứng nhận thành công" });
-
-  } catch (err) {
-    console.error("POST /api/giay_chung_nhan error:", err);
-    res.status(500).json({ message: "Lỗi server (post giay_chung_nhan)" });
-  }
-});
-
-app.delete('/api/giay_chung_nhan/:doi_tuong', auth, async (req, res) => {
-  try {
-    const { doi_tuong } = req.params;
-    const [rows] = await pool.execute(
-      'SELECT id FROM thong_tin_gcn WHERE doi_tuong = ? LIMIT 1',
-      [doi_tuong]
-    );
-    if (!rows || rows.length === 0) {
-      return res.status(404).json({ message: 'Bản ghi giấy chứng nhận không tồn tại' });
-    }
-    await pool.execute(
-      'DELETE FROM thong_tin_gcn WHERE doi_tuong = ?',
-      [doi_tuong]
-    );
-    res.json({ message: 'Xóa giấy chứng nhận thành công' });
-  } catch (err) {
-    console.error("DELETE /api/giay_chung_nhan/:doi_tuong error:", err);
-    res.status(500).json({ message: "Lỗi server (delete giay_chung_nhan)" });
-  }
-});
-
-// GET /api/ket_qua/with-avg
-app.get('/api/ket_qua/with-avg/Stas_1', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        dkt.id,
-        dkt.ma_sv,
-        dkt.ten_nhom,
-        dkt.hinh_thuc,
-        dkt.id_hd,
-        tk.ho_ten,
-        hd.ten_hd,
-        kq.giai_thuong,
-        kq.trang_thai,
-        AVG(cd.diem) AS avg_score
-      FROM dang_ky_thi dkt
-      LEFT JOIN tai_khoan tk ON dkt.ma_sv = tk.ma_ca_nhan
-      LEFT JOIN hoat_dong hd ON dkt.id_hd = hd.id_hd
-      LEFT JOIN ket_qua kq ON dkt.id = kq.id_dang_ky
-      LEFT JOIN cham_diem cd ON dkt.id = cd.id_dang_ky
-      WHERE kq.trang_thai = 1
-      GROUP BY dkt.id
-      ORDER BY dkt.id DESC
-    `);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/ket_qua/with-avg/Stas_1 error:", err);
-    res.status(500).json({ message: "Lỗi server (ket_qua with avg)" });
-  }
-});
-
-// ========== THÔNG TIN GCN & LOG TRA CỨU ==========
-
-// GET tất cả thông tin GCN
-app.get('/api/thong_tin_gcn', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        ttg.id,
-        ttg.loai_chung_nhan,
-        ttg.doi_tuong,
-        ttg.noi_dung,
-        ttg.trang_thai,
-        ttg.ma_btc,
-        tk.ho_ten,
-        kq.giai_thuong
-      FROM thong_tin_gcn ttg
-      LEFT JOIN tai_khoan tk ON ttg.ma_btc = tk.ma_ca_nhan
-      LEFT JOIN ket_qua kq ON ttg.doi_tuong = kq.id_dang_ky
-      ORDER BY ttg.id DESC
-    `);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/thong_tin_gcn error:", err);
-    res.status(500).json({ message: "Lỗi server (thong_tin_gcn)" });
-  }
-});
-
-// Tìm kiếm thông tin GCN - PHẢI ĐẶT TRƯỚC /:id
-app.get('/api/thong_tin_gcn/search', auth, async (req, res) => {
-  try {
-    const { loai_chung_nhan, noi_dung, trang_thai } = req.query;
-    
-    let query = `
-      SELECT 
-        ttg.id,
-        ttg.loai_chung_nhan,
-        ttg.doi_tuong,
-        ttg.noi_dung,
-        ttg.trang_thai,
-        ttg.ma_btc,
-        tk.ho_ten,
-        kq.giai_thuong
-      FROM thong_tin_gcn ttg
-      LEFT JOIN tai_khoan tk ON ttg.ma_btc = tk.ma_ca_nhan
-      LEFT JOIN ket_qua kq ON ttg.doi_tuong = kq.id_dang_ky
-      WHERE 1=1
-    `;
-    const params = [];
-
-    if (loai_chung_nhan) {
-      query += ' AND ttg.loai_chung_nhan = ?';
-      params.push(loai_chung_nhan);
-    }
-
-    if (noi_dung) {
-      query += ' AND ttg.noi_dung LIKE ?';
-      params.push(`%${noi_dung}%`);
-    }
-
-    if (trang_thai !== undefined && trang_thai !== '') {
-      query += ' AND ttg.trang_thai = ?';
-      params.push(parseInt(trang_thai, 10));
-    }
-
-    query += ' ORDER BY ttg.id DESC';
-
-    const [rows] = await pool.execute(query, params);
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/thong_tin_gcn/search error:", err);
-    res.status(500).json({ message: "Lỗi server (search thong_tin_gcn)" });
-  }
-});
-
-// GET thông tin GCN theo id
-app.get('/api/thong_tin_gcn/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const [rows] = await pool.execute(`
-      SELECT 
-        ttg.id,
-        ttg.loai_chung_nhan,
-        ttg.doi_tuong,
-        ttg.noi_dung,
-        ttg.trang_thai,
-        ttg.ma_btc,
-        tk.ho_ten,
-        kq.giai_thuong
-      FROM thong_tin_gcn ttg
-      LEFT JOIN tai_khoan tk ON ttg.ma_btc = tk.ma_ca_nhan
-      LEFT JOIN ket_qua kq ON ttg.doi_tuong = kq.id_dang_ky
-      WHERE ttg.id = ?
-    `, [id]);
-
-    if (!rows || rows.length === 0) {
-      return res.status(404).json({ message: 'Giấy chứng nhận không tồn tại' });
-    }
-
-    res.json(rows[0]);
-  } catch (err) {
-    console.error("GET /api/thong_tin_gcn/:id error:", err);
-    res.status(500).json({ message: "Lỗi server (thong_tin_gcn detail)" });
-  }
-});
-
-
-// GET tất cả log tra cứu
-app.get('/api/log_tra_cuu', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        ltc.id,
-        ltc.id_gcn,
-        ltc.tg_tra_cuu,
-        ttg.loai_chung_nhan,
-        ttg.noi_dung,
-        ttg.ma_btc,
-        tk.ho_ten
-      FROM log_tra_cuu ltc
-      JOIN thong_tin_gcn ttg ON ltc.id_gcn = ttg.id
-      LEFT JOIN tai_khoan tk ON ttg.ma_btc = tk.ma_ca_nhan
-      ORDER BY ltc.tg_tra_cuu DESC
-    `);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/log_tra_cuu error:", err);
-    res.status(500).json({ message: "Lỗi server (log_tra_cuu)" });
-  }
-});
-
-// GET log tra cứu theo id GCN
-app.get('/api/log_tra_cuu/:id_gcn', auth, async (req, res) => {
-  try {
     const { id_gcn } = req.params;
-    const [rows] = await pool.execute(`
-      SELECT 
-        ltc.id,
-        ltc.id_gcn,
-        ltc.tg_tra_cuu,
-        ttg.loai_chung_nhan,
-        ttg.noi_dung,
-        ttg.ma_btc,
-        tk.ho_ten
-      FROM log_tra_cuu ltc
-      JOIN thong_tin_gcn ttg ON ltc.id_gcn = ttg.id
-      LEFT JOIN tai_khoan tk ON ttg.ma_btc = tk.ma_ca_nhan
-      WHERE ltc.id_gcn = ?
-      ORDER BY ltc.tg_tra_cuu DESC
-    `, [id_gcn]);
-
+    const [rows] = await pool.execute('SELECT id, id_gcn, tg_tra_cuu FROM log_tra_cuu WHERE id_gcn = ? ORDER BY tg_tra_cuu DESC', [id_gcn]);
     res.json(rows || []);
   } catch (err) {
-    console.error("GET /api/log_tra_cuu/:id_gcn error:", err);
-    res.status(500).json({ message: "Lỗi server (log_tra_cuu detail)" });
+    console.error('GET /api/giay_chung_nhan/log/:id_gcn error:', err);
+    res.status(500).json({ message: 'Lỗi server (get log tra cứu)' });
   }
 });
 
-// POST thêm log tra cứu
-app.post('/api/log_tra_cuu', auth, async (req, res) => {
+// Compatibility endpoints expected by frontend services
+// GET /api/log_gcn - admin only: list all lookup logs
+app.get('/api/log_gcn', auth, async (req, res) => {
   try {
-    const { id_gcn } = req.body;
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
 
-    if (!id_gcn) {
-      return res.status(400).json({ message: 'id_gcn là bắt buộc' });
-    }
-
-    // Kiểm tra xem GCN có tồn tại không
-    const [gcn] = await pool.execute(
-      'SELECT id FROM thong_tin_gcn WHERE id = ?',
-      [id_gcn]
-    );
-
-    if (!gcn || gcn.length === 0) {
-      return res.status(404).json({ message: 'Giấy chứng nhận không tồn tại' });
-    }
-
-    const now = new Date();
-    await pool.execute(
-      'INSERT INTO log_tra_cuu (id_gcn, tg_tra_cuu) VALUES (?, ?)',
-      [id_gcn, now]
-    );
-
-    res.status(201).json({ 
-      message: 'Lưu log tra cứu thành công',
-      id_gcn,
-      tg_tra_cuu: now
-    });
-  } catch (err) {
-    console.error("POST /api/log_tra_cuu error:", err);
-    res.status(500).json({ message: "Lỗi server (add log_tra_cuu)" });
-  }
-});
-
-// ========== ĐIỂM RÈN LUYỆN ==========
-
-const { getXepLoaiFromDiem, calculateDiemFromGiai, GIAI_DIEM_MAP } = require('./diemRenLuyen');
-
-// DEBUG: Kiểm tra số lượng dữ liệu
-app.get('/api/debug/diem_ren_luyen_count', auth, async (req, res) => {
-  try {
-    const [countResult] = await pool.execute('SELECT COUNT(*) as count FROM diem_ren_luyen');
-    const [svCount] = await pool.execute('SELECT COUNT(*) as count FROM sinh_vien');
-    const [thamDuCount] = await pool.execute('SELECT COUNT(*) as count FROM dki_tham_du');
-    const [ketQuaCount] = await pool.execute('SELECT COUNT(*) as count FROM ket_qua WHERE trang_thai = 1');
-    
-    res.json({
-      diem_ren_luyen: countResult[0]?.count || 0,
-      sinh_vien: svCount[0]?.count || 0,
-      dki_tham_du: thamDuCount[0]?.count || 0,
-      ket_qua: ketQuaCount[0]?.count || 0
-    });
-  } catch (err) {
-    console.error("DEBUG: Count error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET tất cả điểm rèn luyện
-app.get('/api/diem_ren_luyen', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        drl.id,
-        drl.ma_sv,
-        drl.diem,
-        drl.xep_loai,
-        drl.ky_hoc,
-        drl.nam_hoc,
-        sv.lop,
-        sv.khoa,
-        tk.ho_ten
-      FROM diem_ren_luyen drl
-      JOIN sinh_vien sv ON drl.ma_sv = sv.ma_sinh_vien
-      JOIN tai_khoan tk ON drl.ma_sv = tk.ma_ca_nhan
-      ORDER BY drl.nam_hoc DESC, drl.ky_hoc DESC, sv.lop
-    `);
-
-    console.log(`[DEBUG] GET /api/diem_ren_luyen: Found ${rows?.length || 0} records`);
+    const [rows] = await pool.execute('SELECT id, id_gcn, tg_tra_cuu FROM log_tra_cuu ORDER BY tg_tra_cuu DESC');
     res.json(rows || []);
   } catch (err) {
-    console.error("GET /api/diem_ren_luyen error:", err);
-    res.status(500).json({ message: "Lỗi server (diem_ren_luyen)", error: err.message });
+    console.error('GET /api/log_gcn error:', err);
+    res.status(500).json({ message: 'Lỗi server (log_gcn)' });
   }
 });
 
-// GET điểm rèn luyện theo sinh viên
-app.get('/api/diem_ren_luyen/sinh_vien/:maSv', auth, async (req, res) => {
+// POST /api/log_gcn - record a lookup (any authenticated user). body: { id_gcn }
+app.post('/api/log_gcn', auth, async (req, res) => {
   try {
-    const { maSv } = req.params;
-    const [rows] = await pool.execute(`
-      SELECT 
-        drl.id,
-        drl.ma_sv,
-        drl.diem,
-        drl.xep_loai,
-        drl.ky_hoc,
-        drl.nam_hoc,
-        sv.lop,
-        sv.khoa,
-        tk.ho_ten
-      FROM diem_ren_luyen drl
-      JOIN sinh_vien sv ON drl.ma_sv = sv.ma_sinh_vien
-      JOIN tai_khoan tk ON drl.ma_sv = tk.ma_ca_nhan
-      WHERE drl.ma_sv = ?
-      ORDER BY drl.nam_hoc DESC, drl.ky_hoc DESC
-    `, [maSv]);
+    const { id_gcn } = req.body || {};
+    if (!id_gcn) return res.status(400).json({ message: 'Thiếu id_gcn' });
 
+    const [gcnRows] = await pool.execute('SELECT id FROM thong_tin_gcn WHERE id = ? LIMIT 1', [id_gcn]);
+    if (!gcnRows || gcnRows.length === 0) return res.status(404).json({ message: 'Giấy chứng nhận không tồn tại' });
+
+    await pool.execute('INSERT INTO log_tra_cuu (id_gcn, tg_tra_cuu) VALUES (?, NOW())', [id_gcn]);
+    res.status(201).json({ message: 'Đã ghi log tra cứu' });
+  } catch (err) {
+    console.error('POST /api/log_gcn error:', err);
+    res.status(500).json({ message: 'Lỗi server (log_gcn)' });
+  }
+});
+
+// GET /api/log_gcn/:id_gcn - admin: logs for a specific GCN
+app.get('/api/log_gcn/:id_gcn', auth, async (req, res) => {
+  try {
+    const role = (req.user.role || '').toLowerCase();
+    if (role !== 'admin') return res.status(403).json({ message: 'Không có quyền truy cập' });
+    const { id_gcn } = req.params;
+    const [rows] = await pool.execute('SELECT id, id_gcn, tg_tra_cuu FROM log_tra_cuu WHERE id_gcn = ? ORDER BY tg_tra_cuu DESC', [id_gcn]);
     res.json(rows || []);
   } catch (err) {
-    console.error("GET /api/diem_ren_luyen/sinh_vien/:maSv error:", err);
-    res.status(500).json({ message: "Lỗi server (diem_ren_luyen detail)" });
+    console.error('GET /api/log_gcn/:id_gcn error:', err);
+    res.status(500).json({ message: 'Lỗi server (log_gcn by id)' });
   }
 });
 
-// GET điểm rèn luyện theo năm học
-app.get('/api/diem_ren_luyen/nam_hoc/:namHoc', auth, async (req, res) => {
-  try {
-    const { namHoc } = req.params;
-    const [rows] = await pool.execute(`
-      SELECT 
-        drl.id,
-        drl.ma_sv,
-        drl.diem,
-        drl.xep_loai,
-        drl.ky_hoc,
-        drl.nam_hoc,
-        sv.lop,
-        sv.khoa,
-        tk.ho_ten
-      FROM diem_ren_luyen drl
-      JOIN sinh_vien sv ON drl.ma_sv = sv.ma_sinh_vien
-      JOIN tai_khoan tk ON drl.ma_sv = tk.ma_ca_nhan
-      WHERE drl.nam_hoc = ?
-      ORDER BY sv.khoa, sv.lop, tk.ho_ten
-    `, [namHoc]);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/diem_ren_luyen/nam_hoc/:namHoc error:", err);
-    res.status(500).json({ message: "Lỗi server (diem_ren_luyen by year)" });
-  }
-});
-
-// POST xử lý tính điểm rèn luyện từ danh sách tham dự và kết quả
-app.post('/api/diem_ren_luyen/process', auth, async (req, res) => {
-  try {
-    const { namHoc, kyHoc } = req.body;
-
-    if (!namHoc || !kyHoc) {
-      return res.status(400).json({ message: 'namHoc và kyHoc là bắt buộc' });
-    }
-
-    // Lấy tất cả sinh viên tham dự hoạt động trong năm học này
-    const [thamDuData] = await pool.execute(`
-      SELECT DISTINCT
-        dtd.ma_sv,
-        sv.lop,
-        sv.khoa,
-        dtd.trang_thai
-      FROM dki_tham_du dtd
-      JOIN sinh_vien sv ON dtd.ma_sv = sv.ma_sinh_vien
-      JOIN hoat_dong_tham_du hdt ON dtd.id_hd = hdt.id_hd_tham_du
-      JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-      JOIN su_kien sk ON hd.id_sk = sk.id_sk
-      WHERE sk.nam_hoc = ?
-    `, [namHoc]);
-
-    // Lấy kết quả giải thưởng
-    const [ketQuaData] = await pool.execute(`
-      SELECT
-        dkt.ma_sv,
-        kq.giai_thuong,
-        hd.id_hd
-      FROM ket_qua kq
-      JOIN dang_ky_thi dkt ON kq.id_dang_ky = dkt.id
-      JOIN hoat_dong_thi hdt ON dkt.id_hd = hdt.id_hd
-      JOIN hoat_dong hd ON hdt.id_hd = hd.id_hd
-      JOIN su_kien sk ON hd.id_sk = sk.id_sk
-      WHERE sk.nam_hoc = ? AND kq.trang_thai = 1
-    `, [namHoc]);
-
-    // Tính tổng điểm cho mỗi sinh viên
-    const diemMap = {};
-
-    // Thêm điểm từ danh sách tham dự
-    thamDuData.forEach(record => {
-      if (!diemMap[record.ma_sv]) {
-        diemMap[record.ma_sv] = {
-          ma_sv: record.ma_sv,
-          lop: record.lop,
-          khoa: record.khoa,
-          diem: 0
-        };
-      }
-      if (record.trang_thai === 1) {
-        diemMap[record.ma_sv].diem += 0.25; // Tham dự
-      }
-    });
-
-    // Thêm điểm từ giải thưởng
-    ketQuaData.forEach(record => {
-      const diemGiai = calculateDiemFromGiai(record.giai_thuong);
-      if (!diemMap[record.ma_sv]) {
-        diemMap[record.ma_sv] = {
-          ma_sv: record.ma_sv,
-          diem: 0
-        };
-      }
-      diemMap[record.ma_sv].diem += diemGiai;
-    });
-
-    // Lưu vào database
-    const results = [];
-    for (const maSv in diemMap) {
-      const record = diemMap[maSv];
-      const xepLoai = getXepLoaiFromDiem(record.diem);
-
-      // Kiểm tra xem bản ghi đã tồn tại chưa
-      const [existing] = await pool.execute(
-        'SELECT id FROM diem_ren_luyen WHERE ma_sv = ? AND nam_hoc = ? AND ky_hoc = ?',
-        [maSv, namHoc, kyHoc]
-      );
-
-      if (existing && existing.length > 0) {
-        // Cập nhật
-        await pool.execute(
-          'UPDATE diem_ren_luyen SET diem = ?, xep_loai = ? WHERE ma_sv = ? AND nam_hoc = ? AND ky_hoc = ?',
-          [record.diem, xepLoai, maSv, namHoc, kyHoc]
-        );
-      } else {
-        // Thêm mới
-        await pool.execute(
-          'INSERT INTO diem_ren_luyen (ma_sv, diem, xep_loai, ky_hoc, nam_hoc) VALUES (?, ?, ?, ?, ?)',
-          [maSv, record.diem, xepLoai, kyHoc, namHoc]
-        );
-      }
-
-      results.push({
-        ma_sv: maSv,
-        diem: record.diem,
-        xep_loai: xepLoai
-      });
-    }
-
-    res.status(201).json({
-      message: `Xử lý điểm rèn luyện thành công (${results.length} sinh viên)`,
-      data: results
-    });
-  } catch (err) {
-    console.error("POST /api/diem_ren_luyen/process error:", err);
-    res.status(500).json({ message: "Lỗi server (process diem_ren_luyen)" });
-  }
-});
-
-// GET xuất file Excel theo lớp-khoa
-app.get('/api/diem_ren_luyen/export/excel', auth, async (req, res) => {
-  try {
-    const { namHoc, lop, khoa } = req.query;
-
-    let query = `
-      SELECT 
-        drl.ma_sv,
-        tk.ho_ten,
-        sv.lop,
-        sv.khoa,
-        drl.diem,
-        drl.xep_loai,
-        drl.ky_hoc,
-        drl.nam_hoc
-      FROM diem_ren_luyen drl
-      JOIN sinh_vien sv ON drl.ma_sv = sv.ma_sinh_vien
-      JOIN tai_khoan tk ON drl.ma_sv = tk.ma_ca_nhan
-      WHERE 1=1
-    `;
-    const params = [];
-
-    if (namHoc) {
-      query += ' AND drl.nam_hoc = ?';
-      params.push(namHoc);
-    }
-
-    if (lop) {
-      query += ' AND sv.lop = ?';
-      params.push(lop);
-    }
-
-    if (khoa) {
-      query += ' AND sv.khoa = ?';
-      params.push(khoa);
-    }
-
-    query += ' ORDER BY sv.khoa, sv.lop, tk.ho_ten';
-
-    const [rows] = await pool.execute(query, params);
-
-    if (!rows || rows.length === 0) {
-      return res.status(404).json({ message: 'Không có dữ liệu để xuất' });
-    }
-
-    // Tạo workbook
-    const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.json_to_sheet(rows.map(r => ({
-      'Mã SV': r.ma_sv,
-      'Họ Tên': r.ho_ten,
-      'Lớp': r.lop,
-      'Khoa': r.khoa,
-      'Điểm': r.diem,
-      'Xếp Loại': r.xep_loai,
-      'Kỳ Học': r.ky_hoc,
-      'Năm Học': r.nam_hoc
-    })));
-
-    xlsx.utils.book_append_sheet(wb, ws, 'Điểm Rèn Luyện');
-
-    // Gửi file
-    const fileName = `diem_ren_luyen_${namHoc || 'all'}_${Date.now()}.xlsx`;
-    const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
-
-    // Encode filename properly for UTF-8 support with RFC 5987
-    const encodedFileName = encodeURIComponent(fileName);
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}; filename="${fileName}"`);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Length', buffer.length);
-    res.send(buffer);
-  } catch (err) {
-    console.error("GET /api/diem_ren_luyen/export/excel error:", err);
-    res.status(500).json({ message: "Lỗi server (export excel diem_ren_luyen)" });
-  }
-});
-
-// GET thống kê theo lớp
-app.get('/api/diem_ren_luyen/statistics/lop', auth, async (req, res) => {
-  try {
-    const { namHoc } = req.query;
-
-    let query = `
-      SELECT
-        sv.lop,
-        sv.khoa,
-        COUNT(DISTINCT drl.ma_sv) as so_sinh_vien,
-        AVG(drl.diem) as diem_trung_binh,
-        MIN(drl.diem) as diem_min,
-        MAX(drl.diem) as diem_max,
-        SUM(CASE WHEN drl.xep_loai = 'Xuất sắc' THEN 1 ELSE 0 END) as xuat_sac,
-        SUM(CASE WHEN drl.xep_loai = 'Tốt' THEN 1 ELSE 0 END) as tot,
-        SUM(CASE WHEN drl.xep_loai = 'Khá' THEN 1 ELSE 0 END) as kha,
-        SUM(CASE WHEN drl.xep_loai = 'Trung bình' THEN 1 ELSE 0 END) as trung_binh,
-        SUM(CASE WHEN drl.xep_loai = 'Yếu' THEN 1 ELSE 0 END) as yeu,
-        SUM(CASE WHEN drl.xep_loai = 'Kém' THEN 1 ELSE 0 END) as kem
-      FROM diem_ren_luyen drl
-      JOIN sinh_vien sv ON drl.ma_sv = sv.ma_sinh_vien
-      WHERE 1=1
-    `;
-    const params = [];
-
-    if (namHoc) {
-      query += ' AND drl.nam_hoc = ?';
-      params.push(namHoc);
-    }
-
-    query += ' GROUP BY sv.lop, sv.khoa ORDER BY sv.khoa, sv.lop';
-
-    const [rows] = await pool.execute(query, params);
-
-    res.json(rows || []);
-  } catch (err) {
-    console.error("GET /api/diem_ren_luyen/statistics/lop error:", err);
-    res.status(500).json({ message: "Lỗi server (statistics by lop)" });
-  }
-});
-
-// PUT cập nhật điểm rèn luyện
-app.put('/api/diem_ren_luyen/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { diem, xep_loai } = req.body;
-
-    if (diem === undefined) {
-      return res.status(400).json({ message: 'diem là bắt buộc' });
-    }
-
-    const xepLoai = xep_loai || getXepLoaiFromDiem(diem);
-
-    await pool.execute(
-      'UPDATE diem_ren_luyen SET diem = ?, xep_loai = ? WHERE id = ?',
-      [diem, xepLoai, id]
-    );
-
-    res.json({ message: 'Cập nhật điểm rèn luyện thành công' });
-  } catch (err) {
-    console.error("PUT /api/diem_ren_luyen/:id error:", err);
-    res.status(500).json({ message: "Lỗi server (update diem_ren_luyen)" });
-  }
-});
-
-// DELETE xóa điểm rèn luyện
-app.delete('/api/diem_ren_luyen/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await pool.execute('DELETE FROM diem_ren_luyen WHERE id = ?', [id]);
-
-    res.json({ message: 'Xóa điểm rèn luyện thành công' });
-  } catch (err) {
-    console.error("DELETE /api/diem_ren_luyen/:id error:", err);
-    res.status(500).json({ message: "Lỗi server (delete diem_ren_luyen)" });
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`NVSP auth server listening on http://localhost:${PORT}`);

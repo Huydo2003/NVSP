@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Dec 04, 2025 at 05:20 PM
+-- Generation Time: Dec 05, 2025 at 06:40 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -140,7 +140,9 @@ CREATE TABLE `cham_diem` (
 
 INSERT INTO `cham_diem` (`id`, `id_dang_ky`, `diem`, `nhan_xet`, `ma_bgk`) VALUES
 (3, 12, 6.50, 'tốt', 'GV0013'),
-(4, 12, 6.50, 'ok', 'GV001');
+(4, 12, 6.50, 'ok', 'GV001'),
+(5, 11, 10.00, 'Thể hiện tốt phần thi', 'GV0013'),
+(6, 11, 10.00, 'Thể hiện tốt', 'GV007');
 
 -- --------------------------------------------------------
 
@@ -215,7 +217,7 @@ INSERT INTO `dang_ky_thi` (`id`, `id_hd`, `hinh_thuc`, `ma_sv`, `ten_nhom`, `ma_
 (4, 1, 'Nhóm', 'SV005', 'NEW02', 523605, 0),
 (8, 5, 'Cá nhân', 'SV005', NULL, NULL, -1),
 (10, 5, 'Cá nhân', 'SV10002', NULL, NULL, 1),
-(11, 3, 'Nhóm', 'SV10002', 'Nhóm Mới', 377705, 0),
+(11, 3, 'Nhóm', 'SV10002', 'Nhóm Mới', 377705, 1),
 (12, 1, 'Nhóm', 'SV10002', 'Nhóm 01', 166575, 1),
 (15, 4, 'Cá nhân', 'SV10002', NULL, NULL, 0),
 (22, 4, 'Nhóm', 'SV0011', 'Nhóm 02', 472176, 0);
@@ -259,6 +261,24 @@ CREATE TABLE `diem_ren_luyen` (
   `nam_hoc` varchar(15) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `diem_ren_luyen`
+--
+
+INSERT INTO `diem_ren_luyen` (`id`, `ma_sv`, `diem`, `xep_loai`, `ky_hoc`, `nam_hoc`) VALUES
+(13, 'SV001', 0, 'Kém', 'Học kỳ 1', '2025-2026'),
+(14, 'SV0011', 0, 'Kém', 'Học kỳ 1', '2025-2026'),
+(15, 'SV10002', 5, 'Kém', 'Học kỳ 1', '2025-2026'),
+(16, 'SV10006', 0, 'Kém', 'Học kỳ 1', '2025-2026'),
+(17, 'SV001', 0, 'Kém', 'Học kỳ 2', '2025-2026'),
+(18, 'SV0011', 0, 'Kém', 'Học kỳ 2', '2025-2026'),
+(19, 'SV10002', 5, 'Kém', 'Học kỳ 2', '2025-2026'),
+(20, 'SV10006', 0, 'Kém', 'Học kỳ 2', '2025-2026'),
+(21, 'SV001', 0, 'Kém', 'Học kỳ hè', '2025-2026'),
+(22, 'SV0011', 0, 'Kém', 'Học kỳ hè', '2025-2026'),
+(23, 'SV10002', 5, 'Kém', 'Học kỳ hè', '2025-2026'),
+(24, 'SV10006', 0, 'Kém', 'Học kỳ hè', '2025-2026');
+
 -- --------------------------------------------------------
 
 --
@@ -278,7 +298,7 @@ CREATE TABLE `dki_tham_du` (
 INSERT INTO `dki_tham_du` (`ma_sv`, `id_hd`, `trang_thai`) VALUES
 ('SV001', 2, -1),
 ('SV0011', 1, 1),
-('SV0011', 3, 1),
+('SV0011', 3, 0),
 ('SV10002', 2, 0),
 ('SV10006', 2, 0);
 
@@ -426,7 +446,7 @@ CREATE TABLE `hoat_dong_thi` (
 INSERT INTO `hoat_dong_thi` (`id_hd`, `id_rubric`, `hinh_thuc`, `so_luong_tv`) VALUES
 (1, 12, 'Nhóm', 2),
 (2, 6, 'Nhóm', 8),
-(3, 6, 'Nhóm', 6),
+(3, 6, 'Nhóm', 2),
 (4, 12, 'Nhóm', 7),
 (5, 5, 'Cá nhân', 1),
 (6, 1, 'Cá nhân', 1);
@@ -448,6 +468,7 @@ CREATE TABLE `ket_qua` (
 --
 
 INSERT INTO `ket_qua` (`id_dang_ky`, `giai_thuong`, `trang_thai`) VALUES
+(11, 'Giải Nhất', 1),
 (12, 'Giải Nhì', 1);
 
 -- --------------------------------------------------------
@@ -462,6 +483,39 @@ CREATE TABLE `log_gcn` (
   `thoi_gian` datetime NOT NULL,
   `ma_btc` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `log_gcn`
+--
+
+INSERT INTO `log_gcn` (`id_gcn`, `hanh_dong`, `thoi_gian`, `ma_btc`) VALUES
+(4, 'Phát hành', '2025-12-05 21:38:11', 'GV0013'),
+(4, 'Thu hồi', '2025-12-05 21:38:54', 'GV0013'),
+(4, 'Phát hành', '2025-12-05 23:06:44', 'GV0013'),
+(5, 'Phát hành', '2025-12-05 23:24:58', 'GV0013'),
+(4, 'Thu hồi', '2025-12-05 23:26:40', 'GV0013');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `log_tra_cuu`
+--
+
+CREATE TABLE `log_tra_cuu` (
+  `id` int(11) NOT NULL,
+  `id_gcn` int(11) NOT NULL,
+  `tg_tra_cuu` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `log_tra_cuu`
+--
+
+INSERT INTO `log_tra_cuu` (`id`, `id_gcn`, `tg_tra_cuu`) VALUES
+(1, 4, '2025-12-05 23:06:53'),
+(2, 5, '2025-12-05 23:26:48'),
+(3, 5, '2025-12-05 23:27:09'),
+(4, 4, '2025-12-05 23:35:20');
 
 -- --------------------------------------------------------
 
@@ -482,15 +536,15 @@ CREATE TABLE `sinh_vien` (
 --
 
 INSERT INTO `sinh_vien` (`ma_sinh_vien`, `nien_khoa`, `lop`, `nganh`, `khoa`) VALUES
-('SV001', '2021', 'K61', 'Toán Học', 'Khoa Toán'),
-('SV0011', 'K55', 'K55B', 'Sư phạm Toán', 'Khoa Toán'),
-('SV004', '2022', 'K62', 'Toán Học', 'Khoa Toán'),
-('SV005', '2021', 'K61', 'Vật lý điện tử', 'Khoa Lý'),
-('SV10001', 'K54', 'K54A', 'Sư phạm Văn', 'Khoa Văn Học'),
-('SV10002', 'K55', 'K55B', 'Sư phạm Văn', 'Khoa Toán'),
-('SV10003', 'K55', 'K55B', 'Sư phạm Anh', 'Khoa Ngoại ngữ'),
-('SV10004', 'K55', 'K55C', 'Sư phạm Toán', 'Khoa Toán'),
-('SV10006', 'K55', 'K55C', 'Văn Học', 'Khoa Văn Học');
+('SV001', '2022-2026', 'K61', 'Toán Học', 'Khoa Toán'),
+('SV0011', '2022-2026', 'K55B', 'Sư phạm Toán', 'Khoa Toán'),
+('SV004', '2022-2026', 'K62', 'Toán Học', 'Khoa Toán'),
+('SV005', '2021-2025', 'K61', 'Vật lý điện tử', 'Khoa Lý'),
+('SV10001', '2020-2024', 'K54A', 'Sư phạm Văn', 'Khoa Văn Học'),
+('SV10002', '2021-2025', 'K55B', 'Sư phạm Văn', 'Khoa Toán'),
+('SV10003', '2021-2025', 'K55B', 'Sư phạm Anh', 'Khoa Ngoại ngữ'),
+('SV10004', '2020-2024', 'K55C', 'Sư phạm Toán', 'Khoa Toán'),
+('SV10006', '2021-2025', 'K55C', 'Văn Học', 'Khoa Văn Học');
 
 -- --------------------------------------------------------
 
@@ -553,7 +607,7 @@ INSERT INTO `tai_khoan` (`id`, `ma_ca_nhan`, `ho_ten`, `mat_khau`, `loai_tk`, `e
 (10, 'SV10004', 'Trần Anh Đức', 'c4ca4238a0b923820dcc509a6f75849b', 'Sinh viên', 'ducta.k55@hnue.edu.vn', '2025-11-12 06:22:17', '2025-11-12 06:43:36'),
 (23, 'SV10006', 'Nguyễn Văn B', '1c8fff44a88ded52df74d0b29b6c01f1', 'Sinh viên', 'nvb@hnue.edu.vn', '2025-11-12 17:28:55', '2025-11-30 14:16:48'),
 (25, 'GV006', 'Lê Thị Thu Hoa', 'f951b7cfbe11e84ed53c134c10ac41f1', 'Giảng viên', 'lethithuhoa@hnue.edu.vn', '2025-11-12 18:02:31', '2025-11-12 19:44:31'),
-(26, 'GV007', 'Trần Văn Cảnh', 'c4ca4238a0b923820dcc509a6f75849b', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-12 18:45:33', '2025-11-12 18:45:33'),
+(26, 'GV007', 'Trần Văn Cảnh', '31e1e346e41ff118d216023a88645a8d', 'Giảng viên', 'tvc@hnue.edu.vn', '2025-11-12 18:45:33', '2025-12-05 16:23:56'),
 (43, 'SV005', 'Nguyễn Văn A', 'f8b83650c5aa44094d5907c0cbfb9e91', 'Sinh viên', 'nguyenvana@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-26 15:50:45'),
 (44, 'GV0012', 'Trần Thị B', 'df030274605ce6de120181c4410ea67b', 'Giảng viên', 'tranthib@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-15 03:49:44'),
 (45, 'GV0013', 'Phạm Văn D', '6082b2fd4baf21f38e38fb4a12721f35', 'Giảng viên', 'phamvandnew@hnue.edu.vn', '2025-11-13 02:11:09', '2025-11-13 07:50:35'),
@@ -584,6 +638,7 @@ INSERT INTO `thanh_vien_nhom` (`ten_nhom`, `ma_sv`) VALUES
 ('Nhóm 01', 'SV001'),
 ('Nhóm 01', 'SV10002'),
 ('Nhóm 02', 'SV0011'),
+('Nhóm Mới', 'SV0011'),
 ('Nhóm Mới', 'SV10002');
 
 -- --------------------------------------------------------
@@ -600,6 +655,14 @@ CREATE TABLE `thong_tin_gcn` (
   `trang_thai` tinyint(1) NOT NULL,
   `ma_btc` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `thong_tin_gcn`
+--
+
+INSERT INTO `thong_tin_gcn` (`id`, `loai_chung_nhan`, `doi_tuong`, `noi_dung`, `trang_thai`, `ma_btc`) VALUES
+(4, 'Nhóm', 12, 'Nội dung khen thưởng', -1, 'GV0013'),
+(5, 'Nhóm', 11, 'Giải Nhất Hội Khỏe Phù Đổng', 1, 'GV0013');
 
 --
 -- Indexes for dumped tables
@@ -726,6 +789,13 @@ ALTER TABLE `log_gcn`
   ADD KEY `id_gcn` (`id_gcn`);
 
 --
+-- Indexes for table `log_tra_cuu`
+--
+ALTER TABLE `log_tra_cuu`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `id_gcn` (`id_gcn`);
+
+--
 -- Indexes for table `sinh_vien`
 --
 ALTER TABLE `sinh_vien`
@@ -766,7 +836,7 @@ ALTER TABLE `thong_tin_gcn`
 -- AUTO_INCREMENT for table `cham_diem`
 --
 ALTER TABLE `cham_diem`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `dang_ky_thi`
@@ -784,7 +854,7 @@ ALTER TABLE `diem_danh`
 -- AUTO_INCREMENT for table `diem_ren_luyen`
 --
 ALTER TABLE `diem_ren_luyen`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `ds_rubric`
@@ -811,6 +881,12 @@ ALTER TABLE `hoat_dong_tham_du`
   MODIFY `id_hd_tham_du` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `log_tra_cuu`
+--
+ALTER TABLE `log_tra_cuu`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
 -- AUTO_INCREMENT for table `su_kien`
 --
 ALTER TABLE `su_kien`
@@ -826,7 +902,7 @@ ALTER TABLE `tai_khoan`
 -- AUTO_INCREMENT for table `thong_tin_gcn`
 --
 ALTER TABLE `thong_tin_gcn`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables
@@ -932,6 +1008,12 @@ ALTER TABLE `ket_qua`
 --
 ALTER TABLE `log_gcn`
   ADD CONSTRAINT `log_gcn_ibfk_1` FOREIGN KEY (`id_gcn`) REFERENCES `thong_tin_gcn` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `log_tra_cuu`
+--
+ALTER TABLE `log_tra_cuu`
+  ADD CONSTRAINT `log_tra_cuu_ibfk_1` FOREIGN KEY (`id_gcn`) REFERENCES `thong_tin_gcn` (`id`);
 
 --
 -- Constraints for table `sinh_vien`

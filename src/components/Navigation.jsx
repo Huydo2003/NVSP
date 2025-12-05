@@ -32,7 +32,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         setIsCbl(!!resCbl?.isCbl);
         setIsBgk(!!resBgk?.isBgk);
 
-      } catch (err) {
+      } catch {
         setIsBcn(false);
         setIsBtc(false);
         setIsCbl(false);
@@ -73,6 +73,10 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
     { id: 'account', label: 'Tài khoản' }
   ];
 
+  const queryGroup = [
+    { id: 'tra_cuu_gcn', label: 'Tra Cứu Giấy Chứng Nhận' },
+  ];
+
   const adminGroup = [
     { id: 'users', label: 'Quản lý người dùng' },
     { id: 'giang_vien', label: 'Quản lý giảng viên' },
@@ -98,6 +102,8 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
         { id: 'hoat_dong_ho_tro', label: 'Quản lý HĐ Hỗ Trợ' },
         { id: 'quan_ly_diem_danh', label: 'Quản lý Điểm Danh' },
         { id: 'ket_qua', label: 'Quản lý Kết Quả' },
+        { id: 'giay_chung_nhan', label: 'Quản lý Giấy Chứng Nhận' },
+        { id: 'diem_ren_luyen', label: 'Quản lý Điểm Rèn Luyện' }
       ]
     : [];
 
@@ -110,14 +116,16 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
       ? isCbl
         ? [
             { id: 'dang_ky_thi_btc', label: 'Quản Lý Đăng Ký Thi' },
-            { id: 'dki_tham_du_approval', label: 'Quản Lý Đăng Ký Tham Dự' }
+            { id: 'dki_tham_du_approval', label: 'Quản Lý Đăng Ký Tham Dự' },
           ]
         : [
             { id: 'dang_ky_thi', label: 'Đăng Ký Thi' },
             { id: 'dki_tham_du', label: 'Đăng Ký Tham Dự' },
-            { id: 'diem_danh', label: 'Điểm Danh' }
+            { id: 'diem_danh', label: 'Điểm Danh' },
           ]
-      : [];
+      : [
+          { id: 'diem_ren_luyen_sinh_vien', label: 'Tra Cứu Điểm Rèn Luyện' }
+      ];
 
   return (
     <nav className="gradient-bg text-white w-64 min-h-full p-4 slide-in overflow-y-auto">
@@ -129,6 +137,7 @@ export default function Navigation({ activeTab, setActiveTab, user, onLogout }) 
 
       {/* Always visible menu groups */}
       {groupBox('Tài khoản', accountGroup)}
+      {groupBox('Tra Cứu', queryGroup)}
 
       {String(user?.role).toLowerCase() === 'admin' &&
         groupBox('Quản trị hệ thống', adminGroup)}

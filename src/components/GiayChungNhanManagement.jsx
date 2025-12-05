@@ -1,0 +1,320 @@
+import React, { useEffect, useState } from 'react';
+import Modal from './Modal';
+import toast from 'react-hot-toast';
+import { useApp } from '../hooks/useApp';
+import { apiFetch } from '../services/api';
+
+import {
+    fetchGiayChungNhanAll,
+    upsertGiayChungNhan,
+    deleteGiayChungNhan
+} from '../services/giay-chung-nhan';
+
+export default function GiayChungNhanManagement() {
+    const { state } = useApp();
+    const { config } = state;
+
+    const [regs, setRegs] = useState([]);
+    const [gcnList, setGcnList] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 9;
+
+    const [showModal, setShowModal] = useState(false);
+    const [selectedReg, setSelectedReg] = useState(null);
+
+    // Modal fields
+    const [loaiCN, setLoaiCN] = useState('');
+    const [noiDung, setNoiDung] = useState('');
+    const [trangThai, setTrangThai] = useState(0); // 0 = chưa phát
+    const [saving, setSaving] = useState(false);
+
+    const [search, setSearch] = useState('');
+
+    // ============================================
+    // LOAD DATA
+    // ============================================
+    const refreshData = async () => {
+        try {
+            setLoading(true);
+
+            const regsResp = await apiFetch('/api/ket_qua/with-avg/Stas_1');
+            setRegs(regsResp || []);
+
+            const gcnResp = await fetchGiayChungNhanAll();
+            setGcnList(gcnResp || []);
+        } catch (err) {
+            console.error(err);
+            toast.error("Không thể tải dữ liệu");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { refreshData(); }, []);
+
+    // ============================================
+    // HELPERS
+    // ============================================
+
+    const findGCN = (id_dang_ky) =>
+        gcnList.find(x => String(x.doi_tuong) === String(id_dang_ky)) || null;
+
+    const getStatusBadge = (tt) => {
+        if (tt === 1)
+            return <span className="absolute top-2 right-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded shadow">Phát hành</span>;
+
+        if (tt === -1)
+            return <span className="absolute top-2 right-2 px-2 py-1 text-xs bg-red-100 text-red-700 rounded shadow">Thu hồi</span>;
+
+        return <span className="absolute top-2 right-2 px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded shadow">Chưa phát</span>;
+    };
+
+    // ============================================
+    // MODAL
+    // ============================================
+    const openModal = (reg) => {
+        setSelectedReg(reg);
+
+        const g = findGCN(reg.id);
+
+        setLoaiCN(g?.loai_chung_nhan || '');
+        setNoiDung(g?.noi_dung || '');
+        setTrangThai(g?.trang_thai ?? 0);
+
+        setShowModal(true);
+    };
+
+    const handleSave = async () => {
+        if (!loaiCN.trim()) return toast.error("Vui lòng chọn loại giấy chứng nhận!");
+        if (!noiDung.trim()) return toast.error("Vui lòng nhập nội dung!");
+
+        try {
+            setSaving(true);
+
+            await upsertGiayChungNhan({
+                loai_chung_nhan: loaiCN.trim(),
+                noi_dung: noiDung.trim(),
+                trang_thai: Number(trangThai),
+                doi_tuong: selectedReg.id
+            });
+
+            toast.success("Đã lưu giấy chứng nhận");
+            setShowModal(false);
+            refreshData();
+        } catch (err) {
+            toast.error("Lỗi khi lưu");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id_dang_ky) => {
+        try {
+            await deleteGiayChungNhan(id_dang_ky);
+            toast.success("Đã xóa giấy chứng nhận");
+            refreshData();
+        } catch (err) {
+            toast.error("Xóa thất bại");
+        }
+    };
+
+    // ============================================
+    // SEARCH
+    // ============================================
+    const filteredRegs = regs.filter(r => {
+        const q = search.toLowerCase();
+
+        const name =
+            r.hinh_thuc === 'Nhóm'
+                ? (r.ten_nhom || '')
+                : (r.ho_ten || r.ten_ca_nhan || r.ma_sv || r.ma_tham_gia || '');
+
+        return (
+            name.toLowerCase().includes(q) ||
+            (r.ten_hd || '').toLowerCase().includes(q)
+        );
+    });
+
+    // ============================================
+    // PAGINATION
+    // ============================================
+    const totalPages = Math.max(1, Math.ceil(filteredRegs.length / itemsPerPage));
+    const displayed = filteredRegs.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+    // ============================================
+    // RENDER
+    // ============================================
+    return (
+        <div className="space-y-6 fade-in">
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
+                    Quản Lý Giấy Chứng Nhận
+                </h1>
+
+                <input
+                    type="text"
+                    placeholder="Tìm theo tên nhóm / tên sinh viên / hoạt động..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-1/3 p-2 border shadow focus:ring focus:outline-none rounded-lg"
+                />
+            </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6">
+                {loading ? (
+                    <div className="text-center py-8 text-gray-500">Đang tải...</div>
+                ) : displayed.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">Không có giấy chứng nhận nào</div>
+                ) : (
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {displayed.map(reg => {
+                            const gcn = findGCN(reg.id);
+
+                            const name =
+                                reg.hinh_thuc === 'Nhóm'
+                                    ? (reg.ten_nhom || `Nhóm #${reg.id}`)
+                                    : (reg.ho_ten || reg.ten_ca_nhan || reg.ma_sv || reg.ma_tham_gia);
+
+                            return (
+                                <div key={reg.id} className="relative bg-white border rounded-xl shadow-sm p-4 hover:shadow-lg transition">
+                                    {/* BADGE TRẠNG THÁI */}
+                                    {gcn && getStatusBadge(gcn.trang_thai)}
+
+                                    <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold">{name}</h3>
+                                        <p className="text-sm text-gray-500">
+                                            Hoạt động: <span className="font-medium">{reg.ten_hd || ''}</span>
+                                        </p>
+
+                                        <div className="text-sm">
+                                            Loại GCN: <span className="font-semibold">{gcn?.loai_chung_nhan || '—'}</span>
+                                        </div>
+
+                                        <div className="text-sm">
+                                            Nội dung: <span className="font-semibold">{gcn?.noi_dung || '—'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end space-x-2">
+                                        {/* Nút thêm hoặc cập nhật */}
+                                        <button
+                                            onClick={() => openModal(reg)}
+                                            className="px-3 py-1 text-md bg-blue-600 text-white rounded hover:bg-blue-700"
+                                        >
+                                            {gcn ? "Cập nhật" : "Thêm mới"}
+                                        </button>
+
+                                        {gcn && (
+                                            <button
+                                                onClick={() => handleDelete(reg.id)}
+                                                className="px-3 py-1 text-md bg-red-100 text-red-700 rounded hover:bg-red-200"
+                                            >
+                                                Xóa
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* PAGINATION */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center space-x-2 py-4">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-3 py-1 bg-gray-100 rounded">
+                        Prev
+                    </button>
+
+                    {Array.from({ length: totalPages }).map((_, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setPage(idx + 1)}
+                            className={`px-3 py-1 rounded ${page === idx + 1 ? 'text-white' : 'bg-gray-100 text-gray-700'}`}
+                            style={page === idx + 1 ? { backgroundColor: config.accent_color } : {}}
+                        >
+                            {idx + 1}
+                        </button>
+                    ))}
+
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="px-3 py-1 bg-gray-100 rounded">
+                        Next
+                    </button>
+                </div>
+            )}
+
+            {/* MODAL */}
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title={`Giấy chứng nhận: ${selectedReg
+                        ? (selectedReg.hinh_thuc === 'Nhóm'
+                            ? selectedReg.ten_nhom
+                            : selectedReg.ho_ten || selectedReg.ma_sv)
+                        : ''
+                    }`}
+                size="md"
+            >
+                <div className="space-y-4">
+
+                    {/* LOẠI GCN DROPDOWN */}
+                    <div>
+                        <label className="block text-sm font-medium">Loại chứng nhận</label>
+                        <select
+                            value={loaiCN}
+                            onChange={(e) => setLoaiCN(e.target.value)}
+                            className="w-full border p-2 rounded"
+                        >
+                            <option value="">-- Chọn loại GCN --</option>
+                            <option value="Cá nhân">Cá nhân</option>
+                            <option value="Nhóm">Nhóm</option>
+                        </select>
+                    </div>
+
+                    {/* NỘI DUNG */}
+                    <div>
+                        <label className="block text-sm font-medium">Nội dung</label>
+                        <textarea
+                            value={noiDung}
+                            onChange={(e) => setNoiDung(e.target.value)}
+                            className="w-full border p-2 rounded"
+                            rows={3}
+                            placeholder="Nhập nội dung giấy chứng nhận..."
+                        ></textarea>
+                    </div>
+
+                    {/* TRẠNG THÁI */}
+                    <div>
+                        <label className="block text-sm font-medium">Trạng thái</label>
+                        <select
+                            value={trangThai}
+                            onChange={(e) => setTrangThai(Number(e.target.value))}
+                            className="w-full border p-2 rounded"
+                        >
+                            <option value={0}>Chưa phát</option>
+                            <option value={1}>Phát hành</option>
+                            <option value={-1}>Thu hồi</option>
+                        </select>
+                    </div>
+
+                    {/* BUTTONS */}
+                    <div className="flex justify-end space-x-2">
+                        <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-200 rounded">
+                            Hủy
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-4 py-2 bg-green-600 text-white rounded"
+                            disabled={saving}
+                        >
+                            {saving ? "Đang lưu..." : "Lưu"}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+}

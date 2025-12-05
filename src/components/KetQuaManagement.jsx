@@ -24,6 +24,8 @@ export default function KetQuaManagement() {
   const [status, setStatus] = useState(1);
   const [saving, setSaving] = useState(false);
 
+  const [search, setSearch] = useState('');
+
   // =============================
   // LOAD DATA
   // =============================
@@ -146,20 +148,49 @@ export default function KetQuaManagement() {
     }
   };
 
+  // FILTER by search
+  const filteredRegs = regs.filter(r => {
+    const query = search.toLowerCase();
+
+    const name =
+      r.hinh_thuc === 'Nhóm'
+        ? (r.ten_nhom || '')
+        : (r.ho_ten || r.ma_sv || r.ten_ca_nhan || r.ma_tham_gia || '');
+
+    const activityName = (r.ten_hd || '').toLowerCase();
+
+    return (
+      name.toLowerCase().includes(query) ||
+      activityName.includes(query)
+    );
+  });
+
+
   // =============================
   // PAGINATION
   // =============================
-  const totalPages = Math.max(1, Math.ceil(regs.length / itemsPerPage));
-  const displayed = regs.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredRegs.length / itemsPerPage));
+  const displayed = filteredRegs.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   // =============================
   // RENDER
   // =============================
   return (
     <div className="space-y-6 fade-in">
-      <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
-        Kết quả - Ban Tổ Chức
-      </h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold" style={{ color: config.text_color }}>
+          Kết quả - Ban Tổ Chức
+        </h1>
+        {/* Search Box */}
+        <input
+          type="text"
+          placeholder="Tìm theo tên nhóm / tên sinh viên / tên hoạt động..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-1/3 p-2 border focus:ring focus:ring-green-900 shadow-md focus:outline-none rounded-lg"
+        />
+      </div>
+
 
       <div className="bg-white rounded-lg shadow-md p-6">
         {loading ? (
@@ -208,11 +239,10 @@ export default function KetQuaManagement() {
                     <button
                       onClick={() => avg !== null && openModal(reg)}
                       disabled={avg === null}
-                      className={`px-3 py-1 text-xs rounded-md transition ${
-                        avg === null
+                      className={`px-3 py-1 text-xs rounded-md transition ${avg === null
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-yellow-600 text-white hover:bg-yellow-700'
-                      }`}
+                        }`}
                     >
                       Trao giải
                     </button>
@@ -244,9 +274,8 @@ export default function KetQuaManagement() {
             <button
               key={idx}
               onClick={() => setPage(idx + 1)}
-              className={`px-3 py-1 rounded ${
-                page === idx + 1 ? 'text-white' : 'bg-gray-100 text-gray-700'
-              }`}
+              className={`px-3 py-1 rounded ${page === idx + 1 ? 'text-white' : 'bg-gray-100 text-gray-700'
+                }`}
               style={page === idx + 1 ? { backgroundColor: config.accent_color } : {}}
             >
               {idx + 1}
@@ -263,13 +292,12 @@ export default function KetQuaManagement() {
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={`Kết quả: ${
-          selectedReg
+        title={`Kết quả: ${selectedReg
             ? (selectedReg.hinh_thuc === 'Nhóm'
               ? selectedReg.ten_nhom
               : selectedReg.ho_ten || selectedReg.ma_sv)
             : ''
-        }`}
+          }`}
         size="md"
       >
         <div className="space-y-4">

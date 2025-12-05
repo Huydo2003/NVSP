@@ -3,16 +3,20 @@
   "WorkspaceRootPath": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\log-tra-cuu.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\services\\log-tra-cuu.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\log_tra_cuu.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:server\\log_tra_cuu.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\GiayChungNhanManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\GiayChungNhanManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:server\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\ChamDiemManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\KetQuaManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}|",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\KetQuaManagement.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}|"
     }
   ],
   "DocumentGroupContainers": [
@@ -22,7 +26,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 635,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 5,
           "Children": [
             {
               "$type": "Bookmark",
@@ -46,37 +50,52 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "KetQuaManagement.jsx",
-              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\KetQuaManagement.jsx",
-              "RelativeDocumentMoniker": "src\\components\\KetQuaManagement.jsx",
-              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\KetQuaManagement.jsx",
-              "RelativeToolTip": "src\\components\\KetQuaManagement.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAALwAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-12-04T15:25:40.751Z"
+              "DocumentIndex": 0,
+              "Title": "log-tra-cuu.js",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\log-tra-cuu.js",
+              "RelativeDocumentMoniker": "src\\services\\log-tra-cuu.js",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\services\\log-tra-cuu.js",
+              "RelativeToolTip": "src\\services\\log-tra-cuu.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-05T15:50:14.5Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "ChamDiemManagement.jsx",
-              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx",
-              "RelativeDocumentMoniker": "src\\components\\ChamDiemManagement.jsx",
-              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\ChamDiemManagement.jsx",
-              "RelativeToolTip": "src\\components\\ChamDiemManagement.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAG8BAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-12-03T14:36:59.602Z"
+              "Title": "log_tra_cuu.js",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\log_tra_cuu.js",
+              "RelativeDocumentMoniker": "server\\log_tra_cuu.js",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\log_tra_cuu.js",
+              "RelativeToolTip": "server\\log_tra_cuu.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-12-05T15:47:49.989Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 2,
+              "Title": "GiayChungNhanManagement.jsx",
+              "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\GiayChungNhanManagement.jsx",
+              "RelativeDocumentMoniker": "src\\components\\GiayChungNhanManagement.jsx",
+              "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\src\\components\\GiayChungNhanManagement.jsx",
+              "RelativeToolTip": "src\\components\\GiayChungNhanManagement.jsx",
+              "ViewState": "AgIAABwBAAAAAAAAAAAAAEABAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-12-05T15:43:44.246Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
               "Title": "server.js",
               "DocumentMoniker": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js",
               "RelativeDocumentMoniker": "server\\server.js",
               "ToolTip": "D:\\PROJECT_CODE\\REACTJS\\NVSP\\server\\server.js",
               "RelativeToolTip": "server\\server.js",
-              "ViewState": "AgIAAP4KAAAAAAAAAAAowGYLAAADAAAAAAAAAA==",
+              "ViewState": "AgIAALoMAAAAAAAAAAAAALoMAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
               "WhenOpened": "2025-12-01T14:31:36.77Z",
               "EditorCaption": ""

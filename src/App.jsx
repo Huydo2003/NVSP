@@ -36,6 +36,10 @@ import DiemDanhStudent from './components/DiemDanhStudent';
 import DiemDanhManagement from './components/DiemDanhManagement';
 import ChamDiemManagement from './components/ChamDiemManagement';
 import KetQuaManagement from './components/KetQuaManagement';
+import GiayChungNhanManagement from './components/GiayChungNhanManagement';
+import TraCuuGCN from './components/TraCuuGCN';
+import DiemRenLuyenManagement from './components/DiemRenLuyenManagement';
+import DiemRenLuyen_SinhVien from './components/DiemRenLuyen_SinhVien';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -192,6 +196,14 @@ function App() {
         return <ChamDiemManagement user={currentUser} />;
       case 'ket_qua':
         return <KetQuaManagement user={currentUser} />;
+      case 'giay_chung_nhan':
+        return <GiayChungNhanManagement user={currentUser} />;
+      case 'tra_cuu_gcn':
+        return <TraCuuGCN />;
+      case 'diem_ren_luyen':
+        return <DiemRenLuyenManagement />;
+      case 'diem_ren_luyen_sinh_vien':
+        return <DiemRenLuyen_SinhVien />;
       default:
         return (
           <div className="text-center py-12 text-gray-500">

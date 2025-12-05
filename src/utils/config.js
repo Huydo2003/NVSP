@@ -2,7 +2,7 @@
 export const defaultConfig = {
   system_title: "Hệ Thống Quản Lý Ngiệp Vụ Sư Phạm",
   organization_name: "Trường Đại học ABC",
-  contact_email: "admin@@hnue.edu.vn",
+  contact_email: "admin@hnue.edu.vn",
   primary_color: "#667eea",
   secondary_color: "#764ba2",
   background_color: "#f8fafc",
